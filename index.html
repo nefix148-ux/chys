@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Шифр подстановки - как hello→byrru</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 900px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #1e3c72;
+            font-family: 'Courier New', monospace;
+        }
+
+        .cipher-type {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .cipher-btn {
+            flex: 1;
+            padding: 10px;
+            background: #f0f0f0;
+            border: 2px solid #ddd;
+            cursor: pointer;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: monospace;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .cipher-btn.active {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            border-color: #1e3c72;
+        }
+
+        .input-area, .output-area {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 3px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 18px;
+            font-family: monospace;
+            resize: vertical;
+            font-weight: bold;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #1e3c72;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-family: monospace;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        .copy-btn {
+            background: #28a745;
+        }
+
+        .shift-control {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .shift-control.active {
+            display: block;
+        }
+
+        .shift-slider {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .shift-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1e3c72;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .key-input {
+            margin-top: 10px;
+        }
+
+        .key-input input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            font-family: monospace;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+        }
+
+        .rule-example {
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 10px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #1565c0;
+        }
+
+        .result-box {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 10px;
+            word-break: break-all;
+            font-size: 20px;
+            font-family: monospace;
+            font-weight: bold;
+            color: #1e3c72;
+            border: 2px solid #e0e0e0;
+        }
+
+        .info {
+            font-size: 14px;
+            color: #666;
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Шифр подстановки</h1>
+        
+        <div class="cipher-type">
+            <button class="cipher-btn active" onclick="selectCipher('caesar')">📖 Цезарь (сдвиг)</button>
+            <button class="cipher-btn" onclick="selectCipher('atbash')">🔄 Атбаш (а→я, б→ю)</button>
+            <button class="cipher-btn" onclick="selectCipher('keyboard')">⌨️ Соседние клавиши</button>
+            <button class="cipher-btn" onclick="selectCipher('custom')">✨ Своё правило</button>
+        </div>
+
+        <!-- Управление для шифра Цезаря -->
+        <div id="caesarControl" class="shift-control active">
+            <div class="shift-slider">
+                <span>Сдвиг:</span>
+                <input type="range" id="shiftAmount" min="1" max="32" value="3">
+                <span class="shift-value" id="shiftValueDisplay">+3</span>
+            </div>
+            <div class="rule-example">
+                📖 Пример: при сдвиге 3: hello → khoor<br>
+                🔄 При сдвиге 16 (как в твоём примере hello→byrru): h(+16)→x? Давай проверим!
+            </div>
+        </div>
+
+        <!-- Управление для Атбаш -->
+        <div id="atbashControl" class="shift-control">
+            <div class="rule-example">
+                🔄 Атбаш: а↔я, б↔ю, в↔э, ...<br>
+                📖 Пример: hello → svoov (если английский) или ьфшшф (если русский)
+            </div>
+        </div>
+
+        <!-- Управление для клавиатурного шифра -->
+        <div id="keyboardControl" class="shift-control">
+            <div class="rule-example">
+                ⌨️ Каждая буква заменяется на соседнюю слева на клавиатуре<br>
+                📖 Пример: hello → gwkki (QWERTY раскладка)
+            </div>
+        </div>
+
+        <!-- Управление для своего правила -->
+        <div id="customControl" class="shift-control">
+            <div class="key-input">
+                <input type="text" id="customRule" placeholder="Например: abcdefghijklmnopqrstuvwxyz→zyxwvutsrqponmlkjihgfedcba" style="font-size: 12px;">
+            </div>
+            <div class="rule-example">
+                ✨ Своё правило: напиши алфавит и чем его заменить<br>
+                📖 Пример: abc→cba (a→c, b→b, c→a)
+            </div>
+        </div>
+
+        <div class="input-area">
+            <label>📝 Исходное сообщение:</label>
+            <textarea id="inputText" rows="4" placeholder="Введите текст для шифрования...">hello</textarea>
+        </div>
+
+        <div class="controls">
+            <button onclick="encrypt()">🔒 Зашифровать →</button>
+            <button onclick="decrypt()">← Расшифровать 🔓</button>
+            <button class="copy-btn" onclick="copyResult()">📋 Копировать результат</button>
+        </div>
+
+        <div class="output-area">
+            <label>✨ Результат:</label>
+            <div id="result" class="result-box"></div>
+        </div>
+
+        <div class="info">
+            💡 Все шифры работают только с русскими и английскими буквами.<br>
+            🔄 Шифр Цезаря и Атбаш обратимы (можно расшифровать тем же правилом)
+        </div>
+    </div>
+
+    <script>
+        let currentCipher = 'caesar';
+
+        // Алфавиты
+        const rusLower = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя';
+        const rusUpper = 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ';
+        const engLower = 'abcdefghijklmnopqrstuvwxyz';
+        const engUpper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+        function selectCipher(type) {
+            currentCipher = type;
+            
+            // Обновляем активную кнопку
+            document.querySelectorAll('.cipher-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Скрываем все контролы
+            document.querySelectorAll('.shift-control').forEach(ctrl => ctrl.classList.remove('active'));
+            
+            // Показываем нужный контрол
+            document.getElementById(`${type}Control`).classList.add('active');
+            
+            // Автоматически шифруем при смене типа
+            encrypt();
+        }
+
+        // Обновление значения сдвига
+        const shiftSlider = document.getElementById('shiftAmount');
+        if (shiftSlider) {
+            shiftSlider.addEventListener('input', function() {
+                document.getElementById('shiftValueDisplay').innerText = (this.value > 16 ? '-' : '+') + Math.abs(this.value - 16);
+                encrypt();
+            });
+        }
+
+        // Своё правило
+        const customRule = document.getElementById('customRule');
+        if (customRule) {
+            customRule.addEventListener('input', encrypt);
+        }
+
+        // Шифр Цезаря
+        function caesarShift(text, shift) {
+            // Для русского: shift от 0 до 32
+            // Для английского: shift от 0 до 26
+            let result = '';
+            
+            for (let char of text) {
+                // Русские буквы
+                if (rusLower.includes(char)) {
+                    let index = rusLower.indexOf(char);
+                    let newIndex = (index + shift) % 33;
+                    result += rusLower[newIndex];
+                }
+                else if (rusUpper.includes(char)) {
+                    let index = rusUpper.indexOf(char);
+                    let newIndex = (index + shift) % 33;
+                    result += rusUpper[newIndex];
+                }
+                // Английские буквы
+                else if (engLower.includes(char)) {
+                    let index = engLower.indexOf(char);
+                    let newIndex = (index + shift) % 26;
+                    result += engLower[newIndex];
+                }
+                else if (engUpper.includes(char)) {
+                    let index = engUpper.indexOf(char);
+                    let newIndex = (index + shift) % 26;
+                    result += engUpper[newIndex];
+                }
+                else {
+                    result += char; // остальные символы без изменений
+                }
+            }
+            return result;
+        }
+
+        // Шифр Атбаш (а→я, б→ю, ...)
+        function atbash(text) {
+            let result = '';
+            
+            for (let char of text) {
+                // Русские буквы
+                if (rusLower.includes(char)) {
+                    let index = rusLower.indexOf(char);
+                    result += rusLower[32 - index];
+                }
+                else if (rusUpper.includes(char)) {
+                    let index = rusUpper.indexOf(char);
+                    result += rusUpper[32 - index];
+                }
+                // Английские буквы
+                else if (engLower.includes(char)) {
+                    let index = engLower.indexOf(char);
+                    result += engLower[25 - index];
+                }
+                else if (engUpper.includes(char)) {
+                    let index = engUpper.indexOf(char);
+                    result += engUpper[25 - index];
+                }
+                else {
+                    result += char;
+                }
+            }
+            return result;
+        }
+
+        // Клавиатурный шифр (соседние клавиши слева для QWERTY)
+        function keyboardShift(text) {
+            const keyboardMap = {
+                'q':'w', 'w':'e', 'e':'r', 'r':'t', 't':'y', 'y':'u', 'u':'i', 'i':'o', 'o':'p', 'p':'[',
+                'a':'s', 's':'d', 'd':'f', 'f':'g', 'g':'h', 'h':'j', 'j':'k', 'k':'l', 'l':';',
+                'z':'x', 'x':'c', 'c':'v', 'v':'b', 'b':'n', 'n':'m', 'm':',',
+                'Q':'W', 'W':'E', 'E':'R', 'R':'T', 'T':'Y', 'Y':'U', 'U':'I', 'I':'O', 'O':'P', 'P':'{',
+                'A':'S', 'S':'D', 'D':'F', 'F':'G', 'G':'H', 'H':'J', 'J':'K', 'K':'L', 'L':':',
+                'Z':'X', 'X':'C', 'C':'V', 'V':'B', 'B':'N', 'N':'M', 'M':'<'
+            };
+            
+            let result = '';
+            for (let char of text) {
+                result += keyboardMap[char] || char;
+            }
+            return result;
+        }
+
+        // Своё правило
+        function customCipher(text) {
+            let rule = document.getElementById('customRule').value;
+            if (!rule) return text;
+            
+            // Парсим правило: алфавит→замена
+            let parts = rule.split('→');
+            if (parts.length !== 2) {
+                return "❌ Неверный формат. Используй: алфавит→замена";
+            }
+            
+            let from = parts[0];
+            let to = parts[1];
+            
+            let result = '';
+            for (let char of text) {
+                let index = from.indexOf(char);
+                if (index !== -1 && index < to.length) {
+                    result += to[index];
+                } else {
+                    result += char;
+                }
+            }
+            return result;
+        }
+
+        function encrypt() {
+            let input = document.getElementById('inputText').value;
+            let result = '';
+            
+            switch(currentCipher) {
+                case 'caesar':
+                    let shift = parseInt(document.getElementById('shiftAmount').value);
+                    result = caesarShift(input, shift);
+                    break;
+                case 'atbash':
+                    result = atbash(input);
+                    break;
+                case 'keyboard':
+                    result = keyboardShift(input);
+                    break;
+                case 'custom':
+                    result = customCipher(input);
+                    break;
+            }
+            
+            document.getElementById('result').innerHTML = result || '❌ Ошибка шифрования';
+        }
+        
+        function decrypt() {
+            // Для симметричных шифров расшифровка - это то же самое с обратным сдвигом
+            let input = document.getElementById('inputText').value;
+            let result = '';
+            
+            switch(currentCipher) {
+                case 'caesar':
+                    let shift = parseInt(document.getElementById('shiftAmount').value);
+                    result = caesarShift(input, 33 - shift); // обратный сдвиг для русских
+                    // Если английские буквы, используем 26 - shift
+                    let temp = caesarShift(input, 26 - shift);
+                    if (temp.length > 0 && /[a-zA-Z]/.test(temp)) {
+                        result = temp;
+                    }
+                    break;
+                case 'atbash':
+                    result = atbash(input); // Атбаш симметричен
+                    break;
+                case 'keyboard':
+                    // Можно расшифровать только если сделать обратное отображение
+                    result = "⌨️ Расшифровка требует обратного правила";
+                    break;
+                case 'custom':
+                    result = customCipher(input);
+                    break;
+            }
+            
+            document.getElementById('result').innerHTML = result;
+        }
+        
+        function copyResult() {
+            const resultText = document.getElementById('result').innerText;
+            navigator.clipboard.writeText(resultText).then(() => {
+                alert('Скопировано!');
+            });
+        }
+        
+        // При загрузке сразу показываем пример
+        window.onload = () => {
+            encrypt();
+        };
+    </script>
+</body>
+  </html>
