@@ -1,12 +1,15 @@
 {
   "name": "dung-eons-tester",
   "version": "1.0.0",
+  "description": "AI-тестировщик для игры Dung Eons & AI",
+  "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "puppeteer": "^21.0.0",
-    "dotenv": "^16.0.0"
+    "dotenv": "^16.4.5",
+    "puppeteer": "^22.0.0"
   }
 }
