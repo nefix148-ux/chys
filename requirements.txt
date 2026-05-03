@@ -1,1 +1,6 @@
-
+groq
+moondream
+torch
+pillow
+playwright
+huggingface_hub
