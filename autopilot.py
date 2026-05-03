@@ -8,26 +8,15 @@ from pathlib import Path
 from typing import Optional, Tuple, List
 
 from PIL import Image
-import moondream as md
 from groq import Groq
 from playwright.sync_api import sync_playwright
+
+# Moondream — новый API (версия 0.2+)
+import moondream as md
 
 
 # ==================== КОНФИГУРАЦИЯ (Render Environment Variables) ====================
 
-# --- Render Environment Variables ---
-# GROQ_API_KEY             - API ключ Groq (обязательно)
-# MOONDREAM_MODEL_PATH     - путь к папке с моделью Moondream (по умолчанию ./moondream-2b-int8)
-# GROQ_DAILY_LIMIT         - дневной лимит запросов Groq (по умолчанию 14400)
-# GROQ_MIN_REMAINING       - стоп если осталось меньше (по умолчанию 100)
-# MOONDREAM_MAX_RETRIES    - максимум ошибок Moondream подряд (по умолчанию 3)
-# GROQ_MAX_RETRIES         - максимум ошибок Groq подряд (по умолчанию 3)
-# MAX_ITERATIONS_PER_STAGE - максимум итераций на один этап (по умолчанию 5)
-# GAME_TASK                - описание игры (или используется DEFAULT_TASK)
-# GAME_STAGES              - JSON-строка с этапами разработки (или используются DEFAULT_STAGES)
-# RENDER                   - Render автоматически устанавливает эту переменную
-
-# Конфигурация из переменных окружения
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 MOONDREAM_MODEL_PATH = os.environ.get("MOONDREAM_MODEL_PATH", "./moondream-2b-int8")
 
@@ -37,13 +26,11 @@ MOONDREAM_MAX_RETRIES = int(os.environ.get("MOONDREAM_MAX_RETRIES", "3"))
 GROQ_MAX_RETRIES = int(os.environ.get("GROQ_MAX_RETRIES", "3"))
 MAX_ITERATIONS_PER_STAGE = int(os.environ.get("MAX_ITERATIONS_PER_STAGE", "5"))
 
-# Пути
 GAME_HTML_PATH = "game.html"
 SCREENSHOT_PATH = "screenshot.png"
 STATE_FILE = "pilot_state.json"
 LOG_FILE = "pilot_log.txt"
 
-# Этапы по умолчанию
 DEFAULT_STAGES = [
     {
         "name": "Базовая сцена",
@@ -75,17 +62,17 @@ DEFAULT_STAGES = [
 DEFAULT_TASK = "Создай простую браузерную игру"
 
 
-# ==================== СИСТЕМА ЛОГИРОВАНИЯ ====================
+# ==================== ЛОГИРОВАНИЕ ====================
 
 def log(msg: str):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{timestamp}] {msg}"
-    print(line, flush=True)  # flush=True важно для Render
+    print(line, flush=True)
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(line + "\n")
 
 
-# ==================== СИСТЕМА СОСТОЯНИЙ И ЛИМИТОВ ====================
+# ==================== СОСТОЯНИЕ ====================
 
 class PilotState:
     def __init__(self, state_file: str):
@@ -101,8 +88,8 @@ class PilotState:
             "groq_errors_in_row": 0,
             "moondream_errors_in_row": 0,
             "moondream_healthy": True,
-            "current_stage": 0,        # индекс текущего этапа
-            "stage_iterations": 0,     # итераций в текущем этапе
+            "current_stage": 0,
+            "stage_iterations": 0,
             "total_iterations": 0,
             "status": "idle",
             "stop_reason": "",
@@ -128,7 +115,6 @@ class PilotState:
             self.data["stop_reason"] = ""
             self.save()
     
-    # --- Groq ---
     def groq_can_request(self) -> Tuple[bool, str]:
         remaining = GROQ_DAILY_LIMIT - self.data["groq_requests_used"]
         if remaining <= 0:
@@ -150,7 +136,6 @@ class PilotState:
     def groq_remaining(self) -> int:
         return max(0, GROQ_DAILY_LIMIT - self.data["groq_requests_used"])
     
-    # --- Moondream ---
     def moondream_can_request(self) -> Tuple[bool, str]:
         if not self.data["moondream_healthy"]:
             return False, "Moondream: помечена нездоровой"
@@ -167,7 +152,6 @@ class PilotState:
                 self.data["moondream_healthy"] = False
         self.save()
     
-    # --- Этапы ---
     def stage_done(self, stage_name: str):
         self.data["current_stage"] += 1
         self.data["stage_iterations"] = 0
@@ -185,17 +169,14 @@ class PilotState:
             return False, f"Стоп: {self.data['stop_reason']}"
         if self.data["stage_iterations"] >= MAX_ITERATIONS_PER_STAGE:
             return False, f"Лимит итераций этапа ({MAX_ITERATIONS_PER_STAGE})"
-        
         can_g, reason_g = self.groq_can_request()
         if not can_g:
             self.stop(reason_g)
             return False, reason_g
-        
         can_m, reason_m = self.moondream_can_request()
         if not can_m:
             self.stop(reason_m)
             return False, reason_m
-        
         return True, "ok"
     
     def stop(self, reason: str):
@@ -226,11 +207,29 @@ def init_groq() -> Optional[Groq]:
         log(f"❌ Groq ошибка: {e}")
         return None
 
-def init_moondream() -> Optional[md.VL]:
+
+def init_moondream():
+    """
+    Инициализация Moondream.
+    Пробуем новый API (moondream 0.2+):
+      model = md.vl(model=...)
+    Если не работает — пробуем старый:
+      model = md.VL(model=...)
+    """
     try:
-        model = md.VL(model=MOONDREAM_MODEL_PATH)
-        log("✅ Moondream готов")
+        # Новый API (moondream >= 0.2.0)
+        model = md.vl(model=MOONDREAM_MODEL_PATH)
+        log("✅ Moondream готов (новый API: md.vl)")
         return model
+    except AttributeError:
+        try:
+            # Старый API
+            model = md.VL(model=MOONDREAM_MODEL_PATH)
+            log("✅ Moondream готов (старый API: md.VL)")
+            return model
+        except Exception as e:
+            log(f"❌ Moondream ошибка (старый API): {e}")
+            return None
     except Exception as e:
         log(f"❌ Moondream ошибка: {e}")
         return None
@@ -256,7 +255,7 @@ def screenshot(state: PilotState) -> bool:
         return False
 
 
-def moondream_check(moon: md.VL, check_question: str, state: PilotState) -> Optional[str]:
+def moondream_check(moon, check_question: str, state: PilotState) -> Optional[str]:
     can, reason = state.moondream_can_request()
     if not can:
         log(f"⏸️ Moondream: {reason}")
@@ -368,7 +367,6 @@ def main():
     state.data["status"] = "running"
     state.save()
     
-    # Загружаем этапы
     stages_raw = os.environ.get("GAME_STAGES", "")
     if stages_raw:
         try:
@@ -383,18 +381,15 @@ def main():
     log(f"📝 Игра: {task_description}")
     log(f"📋 Этапов: {len(stages)}")
     
-    # Загружаем код
     current_code = ""
     if Path(GAME_HTML_PATH).exists():
         with open(GAME_HTML_PATH, "r", encoding="utf-8") as f:
             current_code = f.read()
         log(f"📂 game.html загружен ({len(current_code)} символов)")
     
-    # Резюмируем пройденные этапы
     if state.data["stages_completed"]:
         log(f"✅ Пройдено: {', '.join(state.data['stages_completed'])}")
     
-    # Главный цикл по этапам
     for stage_idx in range(state.data["current_stage"], len(stages)):
         stage = stages[stage_idx]
         log(f"\n{'='*50}")
@@ -407,7 +402,6 @@ def main():
         
         no_bug_streak = 0
         
-        # Цикл внутри этапа
         while True:
             can, reason = state.can_continue_stage()
             if not can:
@@ -419,7 +413,6 @@ def main():
             log(f"   Groq осталось: {state.groq_remaining()}")
             log(f"   Ошибки Groq/Moondream: {state.data['groq_errors_in_row']}/{state.data['moondream_errors_in_row']}")
             
-            # Нужен ли первый код?
             if not current_code:
                 current_code = groq_work(groq, "", stage["task"], True, state)
                 if not current_code:
@@ -430,16 +423,13 @@ def main():
                 log("💾 Сохранено")
                 continue
             
-            # Скриншот
             screenshot(state)
             
-            # Moondream проверяет
             report = moondream_check(moon, stage["check"], state)
             if report is None:
                 time.sleep(30)
                 continue
             
-            # Этап пройден?
             if "STAGE_OK" in report.upper():
                 no_bug_streak += 1
                 log(f"✅ STAGE_OK (подряд: {no_bug_streak})")
@@ -453,7 +443,6 @@ def main():
             else:
                 no_bug_streak = 0
             
-            # Groq чинит
             new_code = groq_work(groq, current_code, report, False, state)
             if not new_code:
                 time.sleep(30)
@@ -480,7 +469,6 @@ def main():
         if state.data["status"] == "stopped":
             break
     
-    # Финал
     with open(GAME_HTML_PATH, "w", encoding="utf-8") as f:
         f.write(current_code)
     
