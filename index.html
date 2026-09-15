@@ -1,537 +1,227 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Гравюра — контуры точками</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@72,400;72,500;72,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+import math
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
 
-:root {
-  --paper: #E8E4D6;
-  --paper-light: #F6F3EA;
-  --ink: #211D18;
-  --ink-soft: #5C5644;
-  --verdigris: #4B6358;
-  --verdigris-dark: #3B4E45;
-  --line: #C9C2AC;
-}
 
-* { box-sizing: border-box; }
+class ImageToAsciiApp:
 
-body {
-  margin: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -webkit-tap-highlight-color: transparent;
-}
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Контур и ASCII Генератор")
+        self.root.geometry("900x700")
 
-button, input, label { font-family: inherit; }
+        self.img_pixels = None
+        self.img_width = 0
+        self.img_height = 0
 
-.app {
-  max-width: 520px;
-  margin: 0 auto;
-  padding: 36px 20px 60px;
-}
+        self.setup_ui()
 
-header h1 {
-  font-family: 'Fraunces', Georgia, serif;
-  font-weight: 500;
-  font-size: 30px;
-  letter-spacing: -0.01em;
-  margin: 0 0 8px;
-}
+    def setup_ui(self):
+        # Верхняя панель управления
+        control_frame = ttk.Frame(self.root, padding=10)
+        control_frame.pack(fill=tk.X)
 
-header p {
-  margin: 0 0 28px;
-  color: var(--ink-soft);
-  font-size: 15px;
-  line-height: 1.55;
-  max-width: 40ch;
-}
+        btn_load = ttk.Button(
+            control_frame, text="Загрузить фото", command=self.load_image
+        )
+        btn_load.pack(side=tk.LEFT, padx=5)
 
-.plate {
-  border: 1px solid var(--line);
-  background: var(--paper-light);
-  padding: 10px;
-}
+        ttk.Label(control_frame, text="Режим:").pack(
+            side=tk.LEFT, padx=(15, 2)
+        )
+        self.mode_var = tk.StringVar(value="contour")
+        mode_cb = ttk.Combobox(
+            control_frame,
+            textvariable=self.mode_var,
+            values=["Контур точками", "ASCII из символов"],
+            state="readonly",
+            width=18,
+        )
+        mode_cb.current(0)
+        mode_cb.pack(side=tk.LEFT, padx=5)
+        mode_cb.bind("<<ComboboxSelected>>", lambda e: self.process_image())
 
-#stage {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background: var(--paper-light);
-}
+        ttk.Label(control_frame, text="Ширина текста:").pack(
+            side=tk.LEFT, padx=(15, 2)
+        )
+        self.width_scale = ttk.Scale(
+            control_frame,
+            from_=40,
+            to=200,
+            value=100,
+            command=lambda e: self.process_image(),
+        )
+        self.width_scale.pack(side=tk.LEFT, padx=5)
 
-#canvas {
-  max-width: 100%;
-  max-height: 100%;
-  display: none;
-}
+        ttk.Label(control_frame, text="Порог/Чувствительность:").pack(
+            side=tk.LEFT, padx=(15, 2)
+        )
+        self.thresh_scale = ttk.Scale(
+            control_frame,
+            from_=10,
+            to=150,
+            value=50,
+            command=lambda e: self.process_image(),
+        )
+        self.thresh_scale.pack(side=tk.LEFT, padx=5)
 
-#canvas.reveal {
-  animation: fadeIn 0.5s ease;
-}
+        btn_copy = ttk.Button(
+            control_frame, text="Скопировать текст", command=self.copy_to_clipboard
+        )
+        btn_copy.pack(side=tk.RIGHT, padx=5)
 
-@media (prefers-reduced-motion: reduce) {
-  #canvas.reveal { animation: none; }
-}
+        # Область вывода текста
+        text_frame = ttk.Frame(self.root, padding=10)
+        text_frame.pack(fill=tk.BOTH, expand=True)
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+        self.text_area = tk.Text(
+            text_frame,
+            font=("Courier", 6),
+            wrap=tk.NONE,
+            bg="black",
+            fg="white",
+        )
+        scrollbar_y = ttk.Scrollbar(
+            text_frame, orient=tk.VERTICAL, command=self.text_area.yview
+        )
+        scrollbar_x = ttk.Scrollbar(
+            text_frame, orient=tk.HORIZONTAL, command=self.text_area.xview
+        )
 
-#placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  cursor: pointer;
-  padding: 20px;
-  text-align: center;
-  color: var(--ink-soft);
-  transition: color 0.15s ease;
-}
+        self.text_area.configure(
+            yscrollcommand=scrollbar_y.set, xscrollcommand=scrollbar_x.set
+        )
 
-#placeholder:hover,
-#placeholder.drag {
-  color: var(--verdigris);
-}
+        scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
+        scrollbar_x.pack(side=tk.BOTTOM, fill=tk.X)
+        self.text_area.pack(fill=tk.BOTH, expand=True)
 
-#placeholder:focus-visible {
-  outline: 2px solid var(--verdigris-dark);
-  outline-offset: 6px;
-}
+    def load_image(self):
+        file_path = filedialog.askopenfilename(
+            filetypes=[
+                ("Изображения", "*.png *.gif *.ppm"),
+                ("Все файлы", "*.*"),
+            ]
+        )
+        if not file_path:
+            return
 
-#placeholder svg {
-  width: 64px;
-  height: 64px;
-}
+        try:
+            # Используем встроенный PhotoImage (поддерживает PNG, GIF, PPM)
+            img = tk.PhotoImage(file="file_path")
+            self.img_width = img.width()
+            self.img_height = img.height()
 
-#placeholder svg circle { fill: currentColor; }
+            # Считываем RGB пиксели
+            self.img_pixels = []
+            for y in range(self.img_height):
+                row = []
+                for x in range(self.img_width):
+                    r, g, b = img.get(x, y)
+                    # Перевод в отрезки яркости (Grayscale)
+                    gray = int(0.299 * r + 0.587 * g + 0.114 * b)
+                    row.append(gray)
+                self.img_pixels.append(row)
 
-#placeholder span {
-  font-size: 14px;
-}
+            self.process_image()
+        except Exception as e:
+            messagebox.showerror(
+                "Ошибка", f"Не удалось загрузить изображение: {e}"
+            )
 
-.caption {
-  font-size: 13px;
-  color: var(--ink-soft);
-  padding: 10px 4px 0;
-  min-height: 18px;
-}
+    def process_image(self):
+        if not self.img_pixels:
+            return
 
-.controls {
-  margin-top: 30px;
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-}
+        target_width = int(self.width_scale.get())
+        # Символы в моноширинном шрифте обычно выше, чем шире (аспект около 0.55)
+        aspect_ratio = 0.55
+        target_height = int(
+            (self.img_height / self.img_width) * target_width * aspect_ratio
+        )
 
-.field label.row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 10px;
-}
+        if target_height <= 0 or target_width <= 0:
+            return
 
-.field .value {
-  font-variant-numeric: tabular-nums;
-  color: var(--verdigris-dark);
-  font-weight: 600;
-}
+        # Масштабирование изображения методом ближайшего соседа
+        resized = []
+        for y in range(target_height):
+            row = []
+            orig_y = int(y * self.img_height / target_height)
+            for x in range(target_width):
+                orig_x = int(x * self.img_width / target_width)
+                row.append(self.img_pixels[orig_y][orig_x])
+            resized.append(row)
 
-input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 2px;
-  background: var(--line);
-  outline: none;
-}
+        mode = self.mode_var.get()
+        threshold = self.thresh_scale.get()
+        result_lines = []
 
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--verdigris);
-  border: 2px solid var(--paper-light);
-  box-shadow: 0 0 0 1px var(--verdigris);
-  cursor: pointer;
-  margin-top: -8px;
-}
+        if mode == "Контур точками":
+            # Вычисление границ с использованием оператора Собеля
+            for y in range(target_height):
+                line = []
+                for x in range(target_width):
+                    if (
+                        y == 0
+                        or y == target_height - 1
+                        or x == 0
+                        or x == target_width - 1
+                    ):
+                        line.append(" ")
+                        continue
 
-input[type="range"]::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--verdigris);
-  border: 2px solid var(--paper-light);
-  box-shadow: 0 0 0 1px var(--verdigris);
-  cursor: pointer;
-}
+                    # Градиенты по X и Y
+                    gx = (
+                        -resized[y - 1][x - 1]
+                        + resized[y - 1][x + 1]
+                        - 2 * resized[y][x - 1]
+                        + 2 * resized[y][x + 1]
+                        - resized[y + 1][x - 1]
+                        + resized[y + 1][x + 1]
+                    )
+                    gy = (
+                        -resized[y - 1][x - 1]
+                        - 2 * resized[y - 1][x]
+                        - resized[y - 1][x + 1]
+                        + resized[y + 1][x - 1]
+                        + 2 * resized[y + 1][x]
+                        + resized[y + 1][x + 1]
+                    )
 
-input[type="range"]::-moz-range-track {
-  height: 2px;
-  background: var(--line);
-}
+                    magnitude = math.sqrt(gx * gx + gy * gy)
+                    if magnitude > threshold * 3:
+                        line.append(".")
+                    else:
+                        line.append(" ")
+                result_lines.append("".join(line))
 
-input[type="range"]:focus-visible::-webkit-slider-thumb {
-  outline: 2px solid var(--verdigris-dark);
-  outline-offset: 3px;
-}
+        else:
+            # Набор символов от темных к светлым
+            chars = "@%#*+=-:. "
+            num_chars = len(chars)
 
-.toggle-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  user-select: none;
-  padding: 4px 0;
-}
+            for y in range(target_height):
+                line = []
+                for x in range(target_width):
+                    val = resized[y][x]
+                    char_idx = int((val / 255) * (num_chars - 1))
+                    line.append(chars[char_idx])
+                result_lines.append("".join(line))
 
-.toggle-row input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--verdigris);
-}
+        output_text = "\n".join(result_lines)
+        self.text_area.delete("1.0", tk.END)
+        self.text_area.insert("1.0", output_text)
 
-.buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 8px;
-}
+    def copy_to_clipboard(self):
+        text = self.text_area.get("1.0", tk.END)
+        if text.strip():
+            self.root.clipboard_clear()
+            self.root.clipboard_append(text)
+            messagebox.showinfo("Успех", "Текст скопирован в буфер обмена!")
 
-button {
-  font-size: 15px;
-  font-weight: 500;
-  border-radius: 3px;
-  padding: 14px 18px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
 
-button:focus-visible {
-  outline: 2px solid var(--verdigris-dark);
-  outline-offset: 2px;
-}
-
-.btn-primary {
-  background: var(--verdigris);
-  color: var(--paper-light);
-}
-
-.btn-primary:hover {
-  background: var(--verdigris-dark);
-}
-
-.btn-primary:disabled {
-  background: var(--line);
-  color: var(--ink-soft);
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: transparent;
-  border-color: var(--line);
-  color: var(--ink);
-}
-
-.btn-secondary:hover {
-  border-color: var(--verdigris);
-  color: var(--verdigris-dark);
-}
-
-#fileInput {
-  display: none;
-}
-
-@media (min-width: 600px) {
-  header h1 { font-size: 34px; }
-}
-</style>
-</head>
-<body>
-<div class="app">
-  <header>
-    <h1>Гравюра</h1>
-    <p>Программа обводит контуры фотографии точками — в духе старинной печатной гравюры.</p>
-  </header>
-
-  <div class="plate">
-    <div id="stage">
-      <canvas id="canvas"></canvas>
-      <div id="placeholder" role="button" tabindex="0" aria-label="Загрузить фото">
-        <svg viewBox="0 0 100 100" aria-hidden="true">
-          <circle cx="83" cy="26" r="1.8"/>
-          <circle cx="81.3" cy="31.3" r="1.8"/>
-          <circle cx="76.8" cy="34.6" r="1.8"/>
-          <circle cx="71.2" cy="34.6" r="1.8"/>
-          <circle cx="66.7" cy="31.3" r="1.8"/>
-          <circle cx="65" cy="26" r="1.8"/>
-          <circle cx="66.7" cy="20.7" r="1.8"/>
-          <circle cx="71.2" cy="17.4" r="1.8"/>
-          <circle cx="76.8" cy="17.4" r="1.8"/>
-          <circle cx="81.3" cy="20.7" r="1.8"/>
-          <circle cx="8" cy="78" r="1.6"/>
-          <circle cx="14" cy="69" r="1.6"/>
-          <circle cx="20" cy="60" r="1.6"/>
-          <circle cx="26" cy="51" r="1.6"/>
-          <circle cx="32" cy="42" r="1.6"/>
-          <circle cx="37.5" cy="51" r="1.6"/>
-          <circle cx="43" cy="60" r="1.6"/>
-          <circle cx="48.5" cy="69" r="1.6"/>
-          <circle cx="54" cy="78" r="1.6"/>
-          <circle cx="30" cy="80" r="1.6"/>
-          <circle cx="38" cy="69" r="1.6"/>
-          <circle cx="46" cy="58" r="1.6"/>
-          <circle cx="54" cy="47" r="1.6"/>
-          <circle cx="62" cy="36" r="1.6"/>
-          <circle cx="69.5" cy="47" r="1.6"/>
-          <circle cx="77" cy="58" r="1.6"/>
-          <circle cx="84.5" cy="69" r="1.6"/>
-          <circle cx="92" cy="80" r="1.6"/>
-          <circle cx="5" cy="85" r="1.3"/>
-          <circle cx="20" cy="85" r="1.3"/>
-          <circle cx="35" cy="85" r="1.3"/>
-          <circle cx="50" cy="85" r="1.3"/>
-          <circle cx="65" cy="85" r="1.3"/>
-          <circle cx="80" cy="85" r="1.3"/>
-          <circle cx="95" cy="85" r="1.3"/>
-        </svg>
-        <span>Нажмите или перетащите фото</span>
-      </div>
-    </div>
-  </div>
-  <div class="caption" id="caption"></div>
-
-  <input type="file" id="fileInput" accept="image/*">
-
-  <div class="controls">
-    <div class="field">
-      <label class="row" for="threshold"><span>Порог контуров</span><span class="value" id="thresholdVal">60</span></label>
-      <input type="range" id="threshold" min="10" max="200" value="60">
-    </div>
-    <div class="field">
-      <label class="row" for="spacing"><span>Расстояние между точками</span><span class="value" id="spacingVal">5</span></label>
-      <input type="range" id="spacing" min="2" max="16" value="5">
-    </div>
-    <div class="field">
-      <label class="row" for="dotSize"><span>Размер точек</span><span class="value" id="dotSizeVal">2.0</span></label>
-      <input type="range" id="dotSize" min="1" max="6" step="0.5" value="2">
-    </div>
-    <label class="toggle-row">
-      <input type="checkbox" id="invert">
-      <span>Тёмный фон</span>
-    </label>
-    <div class="buttons">
-      <button class="btn-secondary" id="uploadBtn" type="button">Загрузить фото</button>
-      <button class="btn-primary" id="downloadBtn" type="button" disabled>Скачать результат</button>
-    </div>
-  </div>
-</div>
-
-<script>
-(function () {
-  var fileInput = document.getElementById('fileInput');
-  var uploadBtn = document.getElementById('uploadBtn');
-  var downloadBtn = document.getElementById('downloadBtn');
-  var canvas = document.getElementById('canvas');
-  var ctx = canvas.getContext('2d');
-  var placeholder = document.getElementById('placeholder');
-  var stage = document.getElementById('stage');
-  var caption = document.getElementById('caption');
-
-  var thresholdEl = document.getElementById('threshold');
-  var spacingEl = document.getElementById('spacing');
-  var dotSizeEl = document.getElementById('dotSize');
-  var invertEl = document.getElementById('invert');
-  var thresholdVal = document.getElementById('thresholdVal');
-  var spacingVal = document.getElementById('spacingVal');
-  var dotSizeVal = document.getElementById('dotSizeVal');
-
-  var MAX_DIM = 1400;
-  var grid = null;
-
-  function openFileDialog() { fileInput.click(); }
-
-  uploadBtn.addEventListener('click', openFileDialog);
-  placeholder.addEventListener('click', openFileDialog);
-  placeholder.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      openFileDialog();
-    }
-  });
-
-  placeholder.addEventListener('dragover', function (e) {
-    e.preventDefault();
-    placeholder.classList.add('drag');
-  });
-  placeholder.addEventListener('dragleave', function () {
-    placeholder.classList.remove('drag');
-  });
-  placeholder.addEventListener('drop', function (e) {
-    e.preventDefault();
-    placeholder.classList.remove('drag');
-    var file = e.dataTransfer.files && e.dataTransfer.files[0];
-    if (file) loadFile(file);
-  });
-
-  fileInput.addEventListener('change', function (e) {
-    var file = e.target.files[0];
-    if (file) loadFile(file);
-  });
-
-  function loadFile(file) {
-    if (!file.type || file.type.indexOf('image/') !== 0) return;
-    var url = URL.createObjectURL(file);
-    var img = new Image();
-    img.onload = function () {
-      analyze(img);
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
-  }
-
-  function analyze(img) {
-    caption.textContent = 'Обработка…';
-    setTimeout(function () {
-      var w = img.naturalWidth;
-      var h = img.naturalHeight;
-      var scale = Math.min(1, MAX_DIM / Math.max(w, h));
-      w = Math.max(1, Math.round(w * scale));
-      h = Math.max(1, Math.round(h * scale));
-
-      var off = document.createElement('canvas');
-      off.width = w;
-      off.height = h;
-      var octx = off.getContext('2d');
-      octx.drawImage(img, 0, 0, w, h);
-      var imgData = octx.getImageData(0, 0, w, h);
-
-      grid = sobel(imgData, w, h);
-
-      stage.style.aspectRatio = w + ' / ' + h;
-      canvas.width = w;
-      canvas.height = h;
-      placeholder.style.display = 'none';
-      canvas.style.display = 'block';
-      canvas.classList.remove('reveal');
-      void canvas.offsetWidth;
-      canvas.classList.add('reveal');
-      downloadBtn.disabled = false;
-      draw();
-    }, 10);
-  }
-
-  function sobel(imgData, w, h) {
-    var d = imgData.data;
-    var gray = new Float32Array(w * h);
-    for (var i = 0, p = 0; i < d.length; i += 4, p++) {
-      gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-    }
-    var mag = new Float32Array(w * h);
-    var maxMag = 1;
-    for (var y = 1; y < h - 1; y++) {
-      for (var x = 1; x < w - 1; x++) {
-        var i00 = (y - 1) * w + (x - 1);
-        var i01 = (y - 1) * w + x;
-        var i02 = (y - 1) * w + (x + 1);
-        var i10 = y * w + (x - 1);
-        var i12 = y * w + (x + 1);
-        var i20 = (y + 1) * w + (x - 1);
-        var i21 = (y + 1) * w + x;
-        var i22 = (y + 1) * w + (x + 1);
-        var gx = -gray[i00] + gray[i02] - 2 * gray[i10] + 2 * gray[i12] - gray[i20] + gray[i22];
-        var gy = -gray[i00] - 2 * gray[i01] - gray[i02] + gray[i20] + 2 * gray[i21] + gray[i22];
-        var m = Math.sqrt(gx * gx + gy * gy);
-        mag[y * w + x] = m;
-        if (m > maxMag) maxMag = m;
-      }
-    }
-    var norm = 255 / maxMag;
-    for (var k = 0; k < mag.length; k++) mag[k] *= norm;
-    return { width: w, height: h, mag: mag };
-  }
-
-  function draw() {
-    if (!grid) return;
-    var width = grid.width, height = grid.height, mag = grid.mag;
-    var threshold = +thresholdEl.value;
-    var spacing = +spacingEl.value;
-    var dotSize = +dotSizeEl.value;
-    var dark = invertEl.checked;
-
-    ctx.fillStyle = dark ? '#17140F' : '#F6F3EA';
-    ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = dark ? '#F2ECDD' : '#211D18';
-
-    var count = 0;
-    for (var cy = 0; cy < height; cy += spacing) {
-      var yEnd = Math.min(cy + spacing, height);
-      for (var cx = 0; cx < width; cx += spacing) {
-        var xEnd = Math.min(cx + spacing, width);
-        var best = -1, bx = cx, by = cy;
-        for (var y = cy; y < yEnd; y++) {
-          var row = y * width;
-          for (var x = cx; x < xEnd; x++) {
-            var v = mag[row + x];
-            if (v > best) { best = v; bx = x; by = y; }
-          }
-        }
-        if (best >= threshold) {
-          var jitter = spacing * 0.2;
-          var jx = bx + (Math.random() - 0.5) * jitter;
-          var jy = by + (Math.random() - 0.5) * jitter;
-          var r = dotSize * (0.55 + 0.45 * (best / 255));
-          ctx.beginPath();
-          ctx.arc(jx, jy, r, 0, Math.PI * 2);
-          ctx.fill();
-          count++;
-        }
-      }
-    }
-    caption.textContent = 'Точек в рисунке: ' + count.toLocaleString('ru-RU') + ' (' + width + '×' + height + ' пикс.)';
-  }
-
-  [thresholdEl, spacingEl, dotSizeEl].forEach(function (el) {
-    el.addEventListener('input', function () {
-      syncLabels();
-      draw();
-    });
-  });
-  invertEl.addEventListener('change', draw);
-
-  function syncLabels() {
-    thresholdVal.textContent = thresholdEl.value;
-    spacingVal.textContent = spacingEl.value;
-    dotSizeVal.textContent = (+dotSizeEl.value).toFixed(1);
-  }
-  syncLabels();
-
-  downloadBtn.addEventListener('click', function () {
-    if (!grid) return;
-    var link = document.createElement('a');
-    link.download = 'engraving-points.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  });
-})();
-</script>
-</body>
-</html>
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ImageToAsciiApp(root)
+    root.mainloop()
