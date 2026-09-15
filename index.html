@@ -15,13 +15,11 @@
       --accent-hover: #79b8ff;
       --success: #3fb950;
       --danger: #f85149;
+      --out-bg: #010409;
+      --out-fg: #c9d1d9;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -35,7 +33,7 @@
     }
 
     h1 {
-      font-size: 1.6rem;
+      font-size: 1.55rem;
       font-weight: 600;
       margin-bottom: 6px;
       letter-spacing: -0.02em;
@@ -43,53 +41,52 @@
 
     .subtitle {
       color: var(--muted);
-      font-size: 0.95rem;
-      margin-bottom: 28px;
+      font-size: 0.92rem;
+      margin-bottom: 24px;
       text-align: center;
-      max-width: 520px;
+      max-width: 540px;
+      line-height: 1.45;
     }
 
     .panel {
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 20px;
+      padding: 18px 20px;
       width: 100%;
-      max-width: 960px;
-      margin-bottom: 20px;
+      max-width: 980px;
+      margin-bottom: 18px;
     }
 
     .controls {
       display: flex;
       flex-wrap: wrap;
-      gap: 14px 20px;
-      align-items: center;
+      gap: 12px 18px;
+      align-items: flex-end;
     }
 
     .control-group {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      min-width: 140px;
+      gap: 5px;
+      min-width: 120px;
     }
 
     label {
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       color: var(--muted);
       font-weight: 500;
     }
 
-    input[type="file"] {
-      display: none;
-    }
+    input[type="file"] { display: none; }
 
     .btn {
       background: var(--accent);
       color: #fff;
       border: none;
       border-radius: 8px;
-      padding: 10px 18px;
-      font-size: 0.9rem;
+      padding: 9px 16px;
+      font-size: 0.88rem;
       font-weight: 500;
       cursor: pointer;
       transition: background 0.15s, transform 0.1s;
@@ -97,148 +94,126 @@
       align-items: center;
       gap: 6px;
     }
-
-    .btn:hover {
-      background: var(--accent-hover);
-    }
-
-    .btn:active {
-      transform: scale(0.97);
-    }
-
-    .btn.secondary {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text);
-    }
-
-    .btn.secondary:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-
-    .btn.success {
-      background: var(--success);
-    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn:active { transform: scale(0.97); }
+    .btn.success { background: var(--success); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
     select, input[type="range"] {
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 6px;
       color: var(--text);
-      padding: 8px 10px;
-      font-size: 0.9rem;
+      padding: 7px 10px;
+      font-size: 0.88rem;
     }
-
-    select {
-      cursor: pointer;
-      min-width: 180px;
-    }
-
+    select { cursor: pointer; min-width: 170px; }
     input[type="range"] {
-      width: 160px;
+      width: 150px;
       padding: 0;
       accent-color: var(--accent);
     }
 
     .value {
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       color: var(--accent);
       font-variant-numeric: tabular-nums;
     }
 
     .preview-row {
       display: flex;
-      gap: 16px;
+      gap: 14px;
       flex-wrap: wrap;
-      margin-top: 16px;
+      margin-top: 14px;
     }
 
     .preview-box {
       flex: 1;
-      min-width: 200px;
+      min-width: 180px;
       background: #010409;
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 10px;
+      padding: 8px;
       text-align: center;
     }
 
-    .preview-box img, .preview-box canvas {
+    .preview-box img {
       max-width: 100%;
-      max-height: 180px;
+      max-height: 160px;
       border-radius: 4px;
       display: block;
       margin: 0 auto;
     }
 
     .preview-label {
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       color: var(--muted);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     #output {
       width: 100%;
-      max-width: 960px;
-      background: #010409;
+      max-width: 980px;
+      background: var(--out-bg);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 16px;
+      padding: 14px;
       overflow: auto;
-      max-height: 70vh;
+      max-height: 72vh;
+      transition: background 0.2s;
     }
 
     #ascii {
-      font-family: "Courier New", Courier, monospace;
-      font-size: 7px;
+      font-family: "Courier New", Courier, "Noto Sans Mono", monospace;
+      font-size: 8px;
       line-height: 1.05;
       white-space: pre;
-      color: #c9d1d9;
+      color: var(--out-fg);
       margin: 0;
       letter-spacing: 0;
+      transition: color 0.2s, font-size 0.15s;
+    }
+
+    #ascii.braille-mode {
+      font-size: 11px;
+      line-height: 1.0;
+      letter-spacing: -0.5px;
     }
 
     .status {
-      margin-top: 12px;
-      font-size: 0.85rem;
+      margin-top: 10px;
+      font-size: 0.84rem;
       color: var(--muted);
       min-height: 1.2em;
     }
+    .status.ok { color: var(--success); }
+    .status.err { color: var(--danger); }
 
-    .status.ok {
-      color: var(--success);
-    }
-
-    .status.err {
-      color: var(--danger);
+    .hint {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 8px;
+      line-height: 1.4;
     }
 
     footer {
-      margin-top: 32px;
-      font-size: 0.8rem;
+      margin-top: 28px;
+      font-size: 0.78rem;
       color: var(--muted);
     }
 
-    @media (max-width: 600px) {
-      .controls {
-        flex-direction: column;
-        align-items: stretch;
-      }
-      .control-group {
-        width: 100%;
-      }
-      input[type="range"] {
-        width: 100%;
-      }
+    @media (max-width: 640px) {
+      .controls { flex-direction: column; align-items: stretch; }
+      .control-group { width: 100%; }
+      input[type="range"] { width: 100%; }
     }
   </style>
 </head>
 <body>
   <h1>Контур &amp; ASCII генератор</h1>
   <p class="subtitle">
-    Загрузи фото → выбери режим → получи текст, который можно скопировать.
-    Контуры рисуются точками, второй режим — плотный ASCII из всяких символов.
+    Загрузи фото → выбери режим и фон → копируй.
+    Режим «Braille (Telegram)» специально заточен под вставку в Telegram — рисунок не разъезжается.
   </p>
 
   <div class="panel">
@@ -254,17 +229,26 @@
         <select id="mode">
           <option value="contour">Контуры точками</option>
           <option value="ascii">Символьный ASCII</option>
+          <option value="braille">Braille (Telegram)</option>
         </select>
       </div>
 
       <div class="control-group">
-        <label>Ширина (символов) <span class="value" id="widthVal">100</span></label>
-        <input type="range" id="width" min="40" max="220" value="100" />
+        <label>Фон</label>
+        <select id="bgMode">
+          <option value="dark">Тёмный</option>
+          <option value="light">Светлый</option>
+        </select>
       </div>
 
       <div class="control-group">
-        <label>Порог / плотность <span class="value" id="threshVal">45</span></label>
-        <input type="range" id="thresh" min="5" max="120" value="45" />
+        <label>Ширина <span class="value" id="widthVal">120</span></label>
+        <input type="range" id="width" min="50" max="240" value="120" />
+      </div>
+
+      <div class="control-group">
+        <label>Порог / плотность <span class="value" id="threshVal">40</span></label>
+        <input type="range" id="thresh" min="5" max="110" value="40" />
       </div>
 
       <div class="control-group" style="margin-left: auto;">
@@ -281,18 +265,22 @@
     </div>
 
     <div class="status" id="status"></div>
+    <p class="hint" id="hint">
+      Совет: для Telegram бери режим Braille и ширину 80–140. На маленьком фото ставь ширину повыше — будет чётче.
+    </p>
   </div>
 
   <div id="output" style="display: none;">
     <pre id="ascii"></pre>
   </div>
 
-  <footer>Просто открой index.html в браузере — ничего ставить не надо.</footer>
+  <footer>Один файл · открывай прямо в браузере</footer>
 
   <script>
     const fileInput = document.getElementById("fileInput");
     const btnLoad = document.getElementById("btnLoad");
     const modeSelect = document.getElementById("mode");
+    const bgSelect = document.getElementById("bgMode");
     const widthRange = document.getElementById("width");
     const threshRange = document.getElementById("thresh");
     const widthVal = document.getElementById("widthVal");
@@ -303,19 +291,18 @@
     const statusEl = document.getElementById("status");
     const previewRow = document.getElementById("previewRow");
     const previewImg = document.getElementById("previewImg");
+    const hintEl = document.getElementById("hint");
 
-    let imageData = null; // ImageData after load
+    let imageData = null;
     let imgW = 0;
     let imgH = 0;
 
-    // Набор символов от тёмного к светлому (включая всякие спецсимволы)
-    const ASCII_CHARS = "█▓▒░@%#*+=-:. ";
-    // Более "грязный" вариант, ближе к тому, что ты просил
     const ASCII_CHARS_RICH = "█▓▒░₽#%&*8@0$%=+~-;:.' ";
 
     btnLoad.addEventListener("click", () => fileInput.click());
     fileInput.addEventListener("change", handleFile);
-    modeSelect.addEventListener("change", process);
+    modeSelect.addEventListener("change", () => { updateHint(); process(); });
+    bgSelect.addEventListener("change", () => { applyBg(); process(); });
     widthRange.addEventListener("input", () => {
       widthVal.textContent = widthRange.value;
       process();
@@ -331,6 +318,32 @@
       statusEl.className = "status" + (type ? " " + type : "");
     }
 
+    function updateHint() {
+      const m = modeSelect.value;
+      if (m === "braille") {
+        hintEl.textContent = "Braille отлично вставляется в Telegram и Discord. Ширина 70–130 обычно идеальна. Фон можно оставить тёмным.";
+      } else if (m === "contour") {
+        hintEl.textContent = "Контуры точками. Чем выше порог — тем меньше точек. На маленьком фото увеличь ширину.";
+      } else {
+        hintEl.textContent = "Символьный ASCII. На маленьком разрешении ставь ширину 100+ — будет меньше каши.";
+      }
+    }
+
+    function applyBg() {
+      const light = bgSelect.value === "light";
+      if (light) {
+        outputBox.style.setProperty("--out-bg", "#f0f2f5");
+        outputBox.style.setProperty("--out-fg", "#1a1a1a");
+        document.documentElement.style.setProperty("--out-bg", "#f0f2f5");
+        document.documentElement.style.setProperty("--out-fg", "#1a1a1a");
+      } else {
+        outputBox.style.setProperty("--out-bg", "#010409");
+        outputBox.style.setProperty("--out-fg", "#c9d1d9");
+        document.documentElement.style.setProperty("--out-bg", "#010409");
+        document.documentElement.style.setProperty("--out-fg", "#c9d1d9");
+      }
+    }
+
     function handleFile(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -341,7 +354,6 @@
         imgW = img.naturalWidth;
         imgH = img.naturalHeight;
 
-        // Рисуем на временный canvas, чтобы получить пиксели
         const canvas = document.createElement("canvas");
         canvas.width = imgW;
         canvas.height = imgH;
@@ -351,99 +363,169 @@
 
         previewImg.src = url;
         previewRow.style.display = "flex";
-        setStatus(`Загружено: ${imgW}×${imgH} px`);
+        setStatus("Загружено: " + imgW + "×" + imgH + " px");
         process();
       };
-      img.onerror = () => {
-        setStatus("Не удалось прочитать изображение", "err");
-      };
+      img.onerror = () => setStatus("Не удалось прочитать изображение", "err");
       img.src = url;
     }
 
     function getGray(x, y, data, w) {
-      const i = (y * w + x) * 4;
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      return 0.299 * r + 0.587 * g + 0.114 * b;
+      const i = (Math.floor(y) * w + Math.floor(x)) * 4;
+      return 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    }
+
+    // Area-average sampling — меньше каши
+    function sampleGray(srcX, srcY, data, w, h, scaleX, scaleY) {
+      const x0 = Math.max(0, Math.floor(srcX));
+      const y0 = Math.max(0, Math.floor(srcY));
+      const x1 = Math.min(w - 1, Math.ceil(srcX + scaleX));
+      const y1 = Math.min(h - 1, Math.ceil(srcY + scaleY));
+
+      let sum = 0;
+      let count = 0;
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          sum += getGray(x, y, data, w);
+          count++;
+        }
+      }
+      return count ? sum / count : 0;
     }
 
     function process() {
       if (!imageData) return;
 
-      const targetW = parseInt(widthRange.value, 10);
-      // Символы выше, чем шире → уменьшаем высоту
-      const aspect = 0.48;
-      const targetH = Math.max(1, Math.round((imgH / imgW) * targetW * aspect));
-      const thresh = parseInt(threshRange.value, 10);
       const mode = modeSelect.value;
+      const lightBg = bgSelect.value === "light";
+      const targetW = parseInt(widthRange.value, 10);
+      const thresh = parseInt(threshRange.value, 10);
 
-      // Масштабируем ближайшим соседом в grayscale
-      const resized = new Float32Array(targetW * targetH);
-      for (let y = 0; y < targetH; y++) {
-        const srcY = Math.min(imgH - 1, Math.floor((y / targetH) * imgH));
-        for (let x = 0; x < targetW; x++) {
-          const srcX = Math.min(imgW - 1, Math.floor((x / targetW) * imgW));
-          resized[y * targetW + x] = getGray(srcX, srcY, imageData.data, imgW);
+      let charsW, charsH, aspect;
+      if (mode === "braille") {
+        charsW = targetW;
+        aspect = 0.5;
+        charsH = Math.max(1, Math.round((imgH / imgW) * charsW * aspect));
+      } else {
+        aspect = 0.48;
+        charsW = targetW;
+        charsH = Math.max(1, Math.round((imgH / imgW) * charsW * aspect));
+      }
+
+      const scaleX = imgW / charsW;
+      const scaleY = imgH / charsH;
+
+      const gray = new Float32Array(charsW * charsH);
+      for (let y = 0; y < charsH; y++) {
+        for (let x = 0; x < charsW; x++) {
+          const sx = x * scaleX;
+          const sy = y * scaleY;
+          gray[y * charsW + x] = sampleGray(sx, sy, imageData.data, imgW, imgH, scaleX, scaleY);
         }
       }
 
       let lines = [];
 
       if (mode === "contour") {
-        // Sobel-подобный детектор краёв
-        for (let y = 0; y < targetH; y++) {
+        for (let y = 0; y < charsH; y++) {
           let line = "";
-          for (let x = 0; x < targetW; x++) {
-            if (y === 0 || y === targetH - 1 || x === 0 || x === targetW - 1) {
+          for (let x = 0; x < charsW; x++) {
+            if (y === 0 || y === charsH - 1 || x === 0 || x === charsW - 1) {
               line += " ";
               continue;
             }
             const gx =
-              -resized[(y - 1) * targetW + (x - 1)] +
-              resized[(y - 1) * targetW + (x + 1)] -
-              2 * resized[y * targetW + (x - 1)] +
-              2 * resized[y * targetW + (x + 1)] -
-              resized[(y + 1) * targetW + (x - 1)] +
-              resized[(y + 1) * targetW + (x + 1)];
-
+              -gray[(y - 1) * charsW + (x - 1)] + gray[(y - 1) * charsW + (x + 1)]
+              - 2 * gray[y * charsW + (x - 1)] + 2 * gray[y * charsW + (x + 1)]
+              - gray[(y + 1) * charsW + (x - 1)] + gray[(y + 1) * charsW + (x + 1)];
             const gy =
-              -resized[(y - 1) * targetW + (x - 1)] -
-              2 * resized[(y - 1) * targetW + x] -
-              resized[(y - 1) * targetW + (x + 1)] +
-              resized[(y + 1) * targetW + (x - 1)] +
-              2 * resized[(y + 1) * targetW + x] +
-              resized[(y + 1) * targetW + (x + 1)];
-
+              -gray[(y - 1) * charsW + (x - 1)] - 2 * gray[(y - 1) * charsW + x] - gray[(y - 1) * charsW + (x + 1)]
+              + gray[(y + 1) * charsW + (x - 1)] + 2 * gray[(y + 1) * charsW + x] + gray[(y + 1) * charsW + (x + 1)];
             const mag = Math.sqrt(gx * gx + gy * gy);
-            // Порог умножаем, чтобы слайдер был удобнее
-            line += mag > thresh * 2.8 ? "." : " ";
+            const isEdge = mag > thresh * 2.6;
+            line += isEdge ? (lightBg ? "•" : ".") : " ";
           }
           lines.push(line);
         }
-      } else {
-        // Плотный ASCII
+        asciiPre.classList.remove("braille-mode");
+      } else if (mode === "ascii") {
         const chars = ASCII_CHARS_RICH;
         const n = chars.length - 1;
-        for (let y = 0; y < targetH; y++) {
+        for (let y = 0; y < charsH; y++) {
           let line = "";
-          for (let x = 0; x < targetW; x++) {
-            const val = resized[y * targetW + x];
-            // Инвертируем: тёмные пиксели → тёмные символы
-            const idx = Math.min(n, Math.max(0, Math.floor((val / 255) * n)));
-            // Можно подкрутить плотность через thresh (сдвиг яркости)
-            const shifted = Math.min(n, Math.max(0, idx + Math.floor((thresh - 45) / 12)));
-            line += chars[shifted];
+          for (let x = 0; x < charsW; x++) {
+            let val = gray[y * charsW + x];
+            if (lightBg) val = 255 - val;
+            let idx = Math.min(n, Math.max(0, Math.floor((val / 255) * n)));
+            idx = Math.min(n, Math.max(0, idx + Math.floor((thresh - 40) / 14)));
+            line += chars[idx];
           }
           lines.push(line);
         }
+        asciiPre.classList.remove("braille-mode");
+      } else {
+        // Braille mode
+        const bw = charsW;
+        const bh = charsH;
+        const pxW = bw * 2;
+        const pxH = bh * 4;
+        const scaleXb = imgW / pxW;
+        const scaleYb = imgH / pxH;
+
+        const fine = new Float32Array(pxW * pxH);
+        for (let y = 0; y < pxH; y++) {
+          for (let x = 0; x < pxW; x++) {
+            fine[y * pxW + x] = sampleGray(
+              x * scaleXb, y * scaleYb,
+              imageData.data, imgW, imgH, scaleXb, scaleYb
+            );
+          }
+        }
+
+        const threshold = 40 + (thresh - 40) * 1.4;
+
+        const bitMap = [
+          [0x01, 0x08],
+          [0x02, 0x10],
+          [0x04, 0x20],
+          [0x40, 0x80],
+        ];
+
+        for (let by = 0; by < bh; by++) {
+          let line = "";
+          for (let bx = 0; bx < bw; bx++) {
+            let code = 0;
+            for (let dy = 0; dy < 4; dy++) {
+              for (let dx = 0; dx < 2; dx++) {
+                const px = bx * 2 + dx;
+                const py = by * 4 + dy;
+                let val = fine[py * pxW + px];
+                if (lightBg) val = 255 - val;
+                if (val < threshold) {
+                  code |= bitMap[dy][dx];
+                }
+              }
+            }
+            line += String.fromCharCode(0x2800 + code);
+          }
+          lines.push(line);
+        }
+        asciiPre.classList.add("braille-mode");
       }
+
+      let fontSize;
+      if (mode === "braille") {
+        fontSize = Math.max(9, Math.min(14, Math.round(900 / Math.max(charsW, 1))));
+      } else {
+        fontSize = Math.max(6, Math.min(11, Math.round(720 / Math.max(charsW, 1))));
+      }
+      asciiPre.style.fontSize = fontSize + "px";
 
       const text = lines.join("\n");
       asciiPre.textContent = text;
       outputBox.style.display = "block";
       btnCopy.disabled = false;
-      setStatus(`Готово · ${targetW}×${targetH} символов`, "ok");
+      setStatus("Готово · " + charsW + "×" + charsH + " · шрифт " + fontSize + "px", "ok");
     }
 
     async function copyText() {
@@ -451,13 +533,10 @@
       if (!text) return;
       try {
         await navigator.clipboard.writeText(text);
-        setStatus("Скопировано в буфер обмена ✓", "ok");
+        setStatus("Скопировано ✓  — теперь можно вставлять в Telegram", "ok");
         btnCopy.textContent = "Скопировано!";
-        setTimeout(() => {
-          btnCopy.textContent = "Скопировать текст";
-        }, 1500);
-      } catch (err) {
-        // Fallback
+        setTimeout(() => { btnCopy.textContent = "Скопировать текст"; }, 1600);
+      } catch {
         const ta = document.createElement("textarea");
         ta.value = text;
         document.body.appendChild(ta);
@@ -467,6 +546,9 @@
         setStatus("Скопировано (fallback)", "ok");
       }
     }
+
+    applyBg();
+    updateHint();
   </script>
 </body>
 </html>
