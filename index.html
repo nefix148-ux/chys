@@ -2,1317 +2,536 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<title>Shadow Quest — Mobile</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Гравюра — контуры точками</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body {
-    background: #0a0a0f;
-    overflow: hidden;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    color: #e0e0e0;
-    user-select: none;
-    touch-action: none;
-    overscroll-behavior: none;
-    width: 100vw; height: 100vh;
-  }
-  #gameCanvas {
-    display: block;
-    width: 100vw; height: 100vh;
-    image-rendering: pixelated;
-  }
-  #ui {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    pointer-events: none;
-  }
-  .hud-panel {
-    position: absolute;
-    background: rgba(10, 10, 20, 0.85);
-    border: 2px solid #4a4a6a;
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 13px;
-    pointer-events: auto;
-  }
-  #hp-bar {
-    top: 10px; left: 10px;
-    min-width: 160px;
-  }
-  .bar-container {
-    width: 100%; height: 14px;
-    background: #2a2a3a;
-    border-radius: 4px;
-    overflow: hidden;
-    margin-top: 4px;
-    border: 1px solid #555;
-  }
-  .bar-fill { height: 100%; transition: width 0.2s; }
-  #hp-fill { background: linear-gradient(90deg, #c0392b, #e74c3c); }
-  #xp-fill { background: linear-gradient(90deg, #2980b9, #3498db); }
-  #stats {
-    top: 10px; right: 10px;
-    text-align: right;
-    font-size: 12px;
-  }
-  #inventory {
-    bottom: 110px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 6px;
-    padding: 6px;
-  }
-  .inv-slot {
-    width: 42px; height: 42px;
-    background: rgba(30,30,50,0.9);
-    border: 2px solid #555;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    position: relative;
-    pointer-events: auto;
-  }
-  .inv-slot.active {
-    border-color: #f1c40f;
-    box-shadow: 0 0 10px rgba(241,196,15,0.4);
-  }
-  .inv-slot .qty {
-    position: absolute;
-    bottom: 2px; right: 4px;
-    font-size: 10px;
-    color: #fff;
-  }
-  #minimap {
-    top: 10px; right: 10px;
-    margin-top: 90px;
-    width: 100px; height: 75px;
-    background: rgba(5,5,10,0.9);
-    border: 2px solid #444;
-    border-radius: 6px;
-  }
-  #message {
-    position: absolute;
-    bottom: 170px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,0.7);
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 14px;
-    opacity: 0;
-    transition: opacity 0.3s;
-    text-align: center;
-    max-width: 80vw;
-  }
-  #message.show { opacity: 1; }
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@72,400;72,500;72,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 
-  .touch-btn {
-    position: absolute;
-    pointer-events: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 28px;
-    color: rgba(255,255,255,0.7);
-    background: rgba(255,255,255,0.08);
-    border: 2px solid rgba(255,255,255,0.2);
-    border-radius: 50%;
-    touch-action: none;
-  }
-  .touch-btn:active, .touch-btn.pressed {
-    background: rgba(255,255,255,0.2);
-    border-color: rgba(255,255,255,0.5);
-    transform: scale(0.95);
-  }
-  #joystick-zone {
-    position: absolute;
-    bottom: 20px; left: 20px;
-    width: 140px; height: 140px;
-    pointer-events: auto;
-    touch-action: none;
-  }
-  #joystick-base {
-    position: absolute;
-    width: 120px; height: 120px;
-    border: 3px solid rgba(255,255,255,0.15);
-    border-radius: 50%;
-    background: rgba(255,255,255,0.03);
-  }
-  #joystick-knob {
-    position: absolute;
-    width: 50px; height: 50px;
-    background: rgba(255,255,255,0.2);
-    border: 2px solid rgba(255,255,255,0.4);
-    border-radius: 50%;
-    left: 35px; top: 35px;
-    transition: none;
-  }
-  #btn-jump {
-    bottom: 100px; right: 100px;
-    width: 70px; height: 70px;
-  }
-  #btn-attack {
-    bottom: 20px; right: 20px;
-    width: 80px; height: 80px;
-    font-size: 32px;
-  }
-  #btn-potion {
-    bottom: 115px; right: 25px;
-    width: 55px; height: 55px;
-    font-size: 22px;
-  }
+:root {
+  --paper: #E8E4D6;
+  --paper-light: #F6F3EA;
+  --ink: #211D18;
+  --ink-soft: #5C5644;
+  --verdigris: #4B6358;
+  --verdigris-dark: #3B4E45;
+  --line: #C9C2AC;
+}
 
-  #startScreen, #gameOverScreen {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: rgba(5,5,15,0.95);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    pointer-events: auto;
-    z-index: 100;
-    padding: 20px;
-    text-align: center;
-  }
-  #gameOverScreen { display: none; }
-  h1 {
-    font-size: 42px;
-    color: #f1c40f;
-    text-shadow: 0 0 20px rgba(241,196,15,0.5);
-    margin-bottom: 8px;
-  }
-  .subtitle {
-    font-size: 16px;
-    color: #aaa;
-    margin-bottom: 30px;
-  }
-  .btn {
-    padding: 14px 36px;
-    font-size: 20px;
-    background: linear-gradient(135deg, #6c3483, #8e44ad);
-    border: none;
-    border-radius: 10px;
-    color: white;
-    cursor: pointer;
-    transition: transform 0.1s, box-shadow 0.2s;
-    margin: 8px;
-    min-width: 200px;
-  }
-  .btn:hover, .btn:active {
-    transform: scale(1.05);
-    box-shadow: 0 0 20px rgba(142,68,173,0.5);
-  }
-  .controls-info {
-    margin-top: 20px;
-    color: #888;
-    font-size: 13px;
-    line-height: 1.8;
-  }
-  .key {
-    display: inline-block;
-    background: #333;
-    padding: 2px 8px;
-    border-radius: 4px;
-    border: 1px solid #555;
-    font-family: monospace;
-    margin: 0 2px;
-  }
+* { box-sizing: border-box; }
 
-  @media (max-width: 400px) {
-    h1 { font-size: 32px; }
-    .btn { font-size: 18px; padding: 12px 28px; min-width: 160px; }
-    #joystick-zone { width: 120px; height: 120px; }
-    #joystick-base { width: 100px; height: 100px; }
-    #joystick-knob { width: 42px; height: 42px; left: 29px; top: 29px; }
-    #btn-attack { width: 70px; height: 70px; font-size: 26px; }
-    #btn-jump { width: 60px; height: 60px; right: 85px; bottom: 90px; }
-    #btn-potion { width: 48px; height: 48px; font-size: 18px; bottom: 100px; right: 18px; }
-    #hp-bar { min-width: 130px; font-size: 11px; }
-    #stats { font-size: 10px; }
-    #inventory { bottom: 95px; }
-    .inv-slot { width: 36px; height: 36px; font-size: 16px; }
-  }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, input, label { font-family: inherit; }
+
+.app {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 36px 20px 60px;
+}
+
+header h1 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 500;
+  font-size: 30px;
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+}
+
+header p {
+  margin: 0 0 28px;
+  color: var(--ink-soft);
+  font-size: 15px;
+  line-height: 1.55;
+  max-width: 40ch;
+}
+
+.plate {
+  border: 1px solid var(--line);
+  background: var(--paper-light);
+  padding: 10px;
+}
+
+#stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--paper-light);
+}
+
+#canvas {
+  max-width: 100%;
+  max-height: 100%;
+  display: none;
+}
+
+#canvas.reveal {
+  animation: fadeIn 0.5s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #canvas.reveal { animation: none; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+#placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  padding: 20px;
+  text-align: center;
+  color: var(--ink-soft);
+  transition: color 0.15s ease;
+}
+
+#placeholder:hover,
+#placeholder.drag {
+  color: var(--verdigris);
+}
+
+#placeholder:focus-visible {
+  outline: 2px solid var(--verdigris-dark);
+  outline-offset: 6px;
+}
+
+#placeholder svg {
+  width: 64px;
+  height: 64px;
+}
+
+#placeholder svg circle { fill: currentColor; }
+
+#placeholder span {
+  font-size: 14px;
+}
+
+.caption {
+  font-size: 13px;
+  color: var(--ink-soft);
+  padding: 10px 4px 0;
+  min-height: 18px;
+}
+
+.controls {
+  margin-top: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.field label.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.field .value {
+  font-variant-numeric: tabular-nums;
+  color: var(--verdigris-dark);
+  font-weight: 600;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: var(--line);
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--verdigris);
+  border: 2px solid var(--paper-light);
+  box-shadow: 0 0 0 1px var(--verdigris);
+  cursor: pointer;
+  margin-top: -8px;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--verdigris);
+  border: 2px solid var(--paper-light);
+  box-shadow: 0 0 0 1px var(--verdigris);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 2px;
+  background: var(--line);
+}
+
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--verdigris-dark);
+  outline-offset: 3px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
+}
+
+.toggle-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--verdigris);
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+button {
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 3px;
+  padding: 14px 18px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--verdigris-dark);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background: var(--verdigris);
+  color: var(--paper-light);
+}
+
+.btn-primary:hover {
+  background: var(--verdigris-dark);
+}
+
+.btn-primary:disabled {
+  background: var(--line);
+  color: var(--ink-soft);
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.btn-secondary:hover {
+  border-color: var(--verdigris);
+  color: var(--verdigris-dark);
+}
+
+#fileInput {
+  display: none;
+}
+
+@media (min-width: 600px) {
+  header h1 { font-size: 34px; }
+}
 </style>
 </head>
 <body>
-<canvas id="gameCanvas"></canvas>
+<div class="app">
+  <header>
+    <h1>Гравюра</h1>
+    <p>Программа обводит контуры фотографии точками — в духе старинной печатной гравюры.</p>
+  </header>
 
-<div id="ui">
-  <div class="hud-panel" id="hp-bar">
-    <div>❤️ <span id="hp-text">100/100</span></div>
-    <div class="bar-container"><div class="bar-fill" id="hp-fill" style="width:100%"></div></div>
-    <div style="margin-top:4px">⭐ <span id="xp-text">0</span></div>
-    <div class="bar-container"><div class="bar-fill" id="xp-fill" style="width:0%"></div></div>
-    <div style="margin-top:4px; font-size:11px; color:#aaa">Ур. <span id="lvl-text">1</span> | 🪙 <span id="gold-text">0</span></div>
+  <div class="plate">
+    <div id="stage">
+      <canvas id="canvas"></canvas>
+      <div id="placeholder" role="button" tabindex="0" aria-label="Загрузить фото">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="83" cy="26" r="1.8"/>
+          <circle cx="81.3" cy="31.3" r="1.8"/>
+          <circle cx="76.8" cy="34.6" r="1.8"/>
+          <circle cx="71.2" cy="34.6" r="1.8"/>
+          <circle cx="66.7" cy="31.3" r="1.8"/>
+          <circle cx="65" cy="26" r="1.8"/>
+          <circle cx="66.7" cy="20.7" r="1.8"/>
+          <circle cx="71.2" cy="17.4" r="1.8"/>
+          <circle cx="76.8" cy="17.4" r="1.8"/>
+          <circle cx="81.3" cy="20.7" r="1.8"/>
+          <circle cx="8" cy="78" r="1.6"/>
+          <circle cx="14" cy="69" r="1.6"/>
+          <circle cx="20" cy="60" r="1.6"/>
+          <circle cx="26" cy="51" r="1.6"/>
+          <circle cx="32" cy="42" r="1.6"/>
+          <circle cx="37.5" cy="51" r="1.6"/>
+          <circle cx="43" cy="60" r="1.6"/>
+          <circle cx="48.5" cy="69" r="1.6"/>
+          <circle cx="54" cy="78" r="1.6"/>
+          <circle cx="30" cy="80" r="1.6"/>
+          <circle cx="38" cy="69" r="1.6"/>
+          <circle cx="46" cy="58" r="1.6"/>
+          <circle cx="54" cy="47" r="1.6"/>
+          <circle cx="62" cy="36" r="1.6"/>
+          <circle cx="69.5" cy="47" r="1.6"/>
+          <circle cx="77" cy="58" r="1.6"/>
+          <circle cx="84.5" cy="69" r="1.6"/>
+          <circle cx="92" cy="80" r="1.6"/>
+          <circle cx="5" cy="85" r="1.3"/>
+          <circle cx="20" cy="85" r="1.3"/>
+          <circle cx="35" cy="85" r="1.3"/>
+          <circle cx="50" cy="85" r="1.3"/>
+          <circle cx="65" cy="85" r="1.3"/>
+          <circle cx="80" cy="85" r="1.3"/>
+          <circle cx="95" cy="85" r="1.3"/>
+        </svg>
+        <span>Нажмите или перетащите фото</span>
+      </div>
+    </div>
   </div>
+  <div class="caption" id="caption"></div>
 
-  <div class="hud-panel" id="stats">
-    <div>⚔️ <span id="dmg-text">15</span></div>
-    <div>🛡️ <span id="def-text">5</span></div>
-    <div>👟 <span id="spd-text">5</span></div>
-    <div>🏠 <span id="room-text">1</span></div>
+  <input type="file" id="fileInput" accept="image/*">
+
+  <div class="controls">
+    <div class="field">
+      <label class="row" for="threshold"><span>Порог контуров</span><span class="value" id="thresholdVal">60</span></label>
+      <input type="range" id="threshold" min="10" max="200" value="60">
+    </div>
+    <div class="field">
+      <label class="row" for="spacing"><span>Расстояние между точками</span><span class="value" id="spacingVal">5</span></label>
+      <input type="range" id="spacing" min="2" max="16" value="5">
+    </div>
+    <div class="field">
+      <label class="row" for="dotSize"><span>Размер точек</span><span class="value" id="dotSizeVal">2.0</span></label>
+      <input type="range" id="dotSize" min="1" max="6" step="0.5" value="2">
+    </div>
+    <label class="toggle-row">
+      <input type="checkbox" id="invert">
+      <span>Тёмный фон</span>
+    </label>
+    <div class="buttons">
+      <button class="btn-secondary" id="uploadBtn" type="button">Загрузить фото</button>
+      <button class="btn-primary" id="downloadBtn" type="button" disabled>Скачать результат</button>
+    </div>
   </div>
-
-  <canvas class="hud-panel" id="minimap"></canvas>
-
-  <div class="hud-panel" id="inventory">
-    <div class="inv-slot active" id="slot0" title="Меч">🗡️<span class="qty"></span></div>
-    <div class="inv-slot" id="slot1" title="Зелье">🧪<span class="qty" id="pot-qty">3</span></div>
-    <div class="inv-slot" id="slot2" title="Пусто"></div>
-    <div class="inv-slot" id="slot3" title="Пусто"></div>
-  </div>
-
-  <div id="message"></div>
-
-  <div id="joystick-zone">
-    <div id="joystick-base"></div>
-    <div id="joystick-knob"></div>
-  </div>
-  <div class="touch-btn" id="btn-jump">⬆️</div>
-  <div class="touch-btn" id="btn-attack">⚔️</div>
-  <div class="touch-btn" id="btn-potion">🧪</div>
-</div>
-
-<div id="startScreen">
-  <h1>⚔️ Shadow Quest</h1>
-  <div class="subtitle">Action RPG для мобильных</div>
-  <button class="btn" id="btn-start">Играть</button>
-  <div class="controls-info">
-    <b>Тач-управление:</b><br>
-    Левый джойстик — движение<br>
-    ⬆️ — прыжок &nbsp; ⚔️ — атака &nbsp; 🧪 — зелье<br><br>
-    <b>Или клавиатура:</b><br>
-    <span class="key">A</span><span class="key">D</span> движение
-    <span class="key">Пробел</span> прыжок
-    <span class="key">J</span> атака
-  </div>
-</div>
-
-<div id="gameOverScreen">
-  <h1 style="color:#e74c3c">☠️ Вы пали</h1>
-  <div class="subtitle" id="death-stats"></div>
-  <button class="btn" id="btn-restart">Попробовать снова</button>
 </div>
 
 <script>
-// ==================== AUDIO ENGINE ====================
-const AudioCtx = window.AudioContext || window.webkitAudioContext;
-let audioCtx = null;
-function ensureAudio() { if (!audioCtx) audioCtx = new AudioCtx(); }
-function playTone(freq, type, duration, vol=0.1) {
-  ensureAudio();
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.start();
-  osc.stop(audioCtx.currentTime + duration);
-}
-function playSword() { playTone(800, 'square', 0.1, 0.08); playTone(400, 'sawtooth', 0.15, 0.05); }
-function playHit() { playTone(150, 'sawtooth', 0.2, 0.1); }
-function playJump() { playTone(300, 'sine', 0.15, 0.08); }
-function playCoin() { playTone(1200, 'sine', 0.1, 0.06); playTone(1600, 'sine', 0.1, 0.06); }
-function playPotion() { playTone(600, 'sine', 0.2, 0.08); playTone(800, 'sine', 0.2, 0.08); }
-function playLevelUp() { [400,500,600,800].forEach((f,i)=>setTimeout(()=>playTone(f,'sine',0.3,0.1),i*100)); }
-function playStep() { playTone(80, 'triangle', 0.05, 0.03); }
+(function () {
+  var fileInput = document.getElementById('fileInput');
+  var uploadBtn = document.getElementById('uploadBtn');
+  var downloadBtn = document.getElementById('downloadBtn');
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  var placeholder = document.getElementById('placeholder');
+  var stage = document.getElementById('stage');
+  var caption = document.getElementById('caption');
 
-// ==================== CONSTANTS ====================
-const TILE = 40;
-const GRAVITY = 0.6;
-const FRICTION = 0.82;
-const CANVAS = document.getElementById('gameCanvas');
-const CTX = CANVAS.getContext('2d');
+  var thresholdEl = document.getElementById('threshold');
+  var spacingEl = document.getElementById('spacing');
+  var dotSizeEl = document.getElementById('dotSize');
+  var invertEl = document.getElementById('invert');
+  var thresholdVal = document.getElementById('thresholdVal');
+  var spacingVal = document.getElementById('spacingVal');
+  var dotSizeVal = document.getElementById('dotSizeVal');
 
-let W, H;
-function resize() {
-  W = CANVAS.width = window.innerWidth;
-  H = CANVAS.height = window.innerHeight;
-}
-window.addEventListener('resize', resize);
-resize();
+  var MAX_DIM = 1400;
+  var grid = null;
 
-// ==================== INPUT ====================
-const keys = {};
-window.addEventListener('keydown', e => {
-  keys[e.code] = true;
-  if (e.code === 'Digit1') selectSlot(0);
-  if (e.code === 'Digit2') selectSlot(1);
-  if (e.code === 'Digit3') selectSlot(2);
-  if (e.code === 'Digit4') selectSlot(3);
-});
-window.addEventListener('keyup', e => keys[e.code] = false);
+  function openFileDialog() { fileInput.click(); }
 
-// Prevent scroll/zoom on mobile
-window.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
-window.addEventListener('gesturestart', e => e.preventDefault());
-window.addEventListener('gesturechange', e => e.preventDefault());
-window.addEventListener('gestureend', e => e.preventDefault());
-document.addEventListener('dblclick', e => e.preventDefault());
-
-let activeSlot = 0;
-function selectSlot(n) {
-  activeSlot = n;
-  for (let i = 0; i < 4; i++) {
-    document.getElementById('slot'+i).classList.toggle('active', i === n);
-  }
-}
-
-// ==================== TOUCH CONTROLS ====================
-const touchState = { left: false, right: false, jump: false, attack: false, potion: false };
-
-const joyZone = document.getElementById('joystick-zone');
-const joyKnob = document.getElementById('joystick-knob');
-let joyActive = false;
-let joyCenter = { x: 0, y: 0 };
-let joyVector = { x: 0, y: 0 };
-
-function getTouchPos(touch, elem) {
-  const rect = elem.getBoundingClientRect();
-  return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
-}
-
-joyZone.addEventListener('touchstart', e => {
-  e.preventDefault();
-  const t = e.touches[0];
-  const pos = getTouchPos(t, joyZone);
-  joyCenter = { x: pos.x, y: pos.y };
-  joyActive = true;
-  updateJoystick(pos);
-}, { passive: false });
-
-joyZone.addEventListener('touchmove', e => {
-  e.preventDefault();
-  if (!joyActive) return;
-  const t = e.touches[0];
-  updateJoystick(getTouchPos(t, joyZone));
-}, { passive: false });
-
-function updateJoystick(pos) {
-  const maxDist = 35;
-  let dx = pos.x - joyCenter.x;
-  let dy = pos.y - joyCenter.y;
-  const dist = Math.hypot(dx, dy);
-  if (dist > maxDist) {
-    dx = (dx / dist) * maxDist;
-    dy = (dy / dist) * maxDist;
-  }
-  joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
-  joyVector.x = dx / maxDist;
-  joyVector.y = dy / maxDist;
-  touchState.left = joyVector.x < -0.3;
-  touchState.right = joyVector.x > 0.3;
-}
-
-function endJoystick() {
-  joyActive = false;
-  joyKnob.style.transform = 'translate(0px, 0px)';
-  joyVector = { x: 0, y: 0 };
-  touchState.left = false;
-  touchState.right = false;
-}
-
-joyZone.addEventListener('touchend', e => { e.preventDefault(); endJoystick(); });
-joyZone.addEventListener('touchcancel', e => { e.preventDefault(); endJoystick(); });
-
-function setupBtn(id, key) {
-  const btn = document.getElementById(id);
-  const press = e => { e.preventDefault(); touchState[key] = true; btn.classList.add('pressed'); };
-  const release = e => { e.preventDefault(); touchState[key] = false; btn.classList.remove('pressed'); };
-  btn.addEventListener('touchstart', press, { passive: false });
-  btn.addEventListener('touchend', release, { passive: false });
-  btn.addEventListener('touchcancel', release, { passive: false });
-  btn.addEventListener('mousedown', () => { touchState[key] = true; btn.classList.add('pressed'); });
-  btn.addEventListener('mouseup', () => { touchState[key] = false; btn.classList.remove('pressed'); });
-  btn.addEventListener('mouseleave', () => { touchState[key] = false; btn.classList.remove('pressed'); });
-}
-setupBtn('btn-jump', 'jump');
-setupBtn('btn-attack', 'attack');
-setupBtn('btn-potion', 'potion');
-
-for (let i = 0; i < 4; i++) {
-  const slot = document.getElementById('slot'+i);
-  slot.addEventListener('touchstart', e => { e.preventDefault(); selectSlot(i); }, { passive: false });
-  slot.addEventListener('mousedown', () => selectSlot(i));
-}
-
-// ==================== UTILS ====================
-function rectIntersect(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
-function lerp(a, b, t) { return a + (b - a) * t; }
-function rand(a, b) { return Math.random() * (b - a) + a; }
-function randInt(a, b) { return Math.floor(rand(a, b)); }
-
-// ==================== PARTICLES ====================
-class Particle {
-  constructor(x, y, vx, vy, life, color, size) {
-    this.x = x; this.y = y; this.vx = vx; this.vy = vy;
-    this.life = life; this.maxLife = life;
-    this.color = color; this.size = size;
-  }
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
-    this.vy += 0.1;
-    this.life--;
-    this.size *= 0.97;
-  }
-  draw(ctx, camX, camY) {
-    ctx.globalAlpha = this.life / this.maxLife;
-    ctx.fillStyle = this.color;
-    ctx.fillRect(this.x - camX, this.y - camY, this.size, this.size);
-    ctx.globalAlpha = 1;
-  }
-}
-let particles = [];
-function spawnParticles(x, y, count, color, speed, size) {
-  for (let i = 0; i < count; i++) {
-    const angle = rand(0, Math.PI * 2);
-    const spd = rand(0.5, speed);
-    particles.push(new Particle(x, y, Math.cos(angle)*spd, Math.sin(angle)*spd, rand(20, 50), color, rand(2, size)));
-  }
-}
-
-// ==================== FLOATING TEXT ====================
-class FloatingText {
-  constructor(x, y, text, color) {
-    this.x = x; this.y = y; this.text = text; this.color = color; this.life = 60;
-  }
-  update() { this.y -= 0.8; this.life--; }
-  draw(ctx, camX, camY) {
-    ctx.globalAlpha = Math.max(0, this.life / 60);
-    ctx.fillStyle = this.color;
-    ctx.font = 'bold 16px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(this.text, this.x - camX, this.y - camY);
-    ctx.globalAlpha = 1;
-  }
-}
-let floatTexts = [];
-
-// ==================== WEAPONS ====================
-const WEAPONS = {
-  sword1: { name: 'Ржавый меч', dmg: 15, range: 50, speed: 12, color: '#aaa', icon: '🗡️' },
-  sword2: { name: 'Стальной меч', dmg: 25, range: 55, speed: 11, color: '#bdc3c7', icon: '⚔️' },
-  sword3: { name: 'Меч теней', dmg: 40, range: 65, speed: 10, color: '#9b59b6', icon: '🗡️' },
-  axe1:   { name: 'Боевой топор', dmg: 35, range: 45, speed: 14, color: '#e67e22', icon: '🪓' },
-  spear1: { name: 'Копьё', dmg: 30, range: 80, speed: 9, color: '#f1c40f', icon: '🔱' },
-};
-
-// ==================== PLAYER ====================
-class Player {
-  constructor() {
-    this.w = 28; this.h = 48;
-    this.x = 200; this.y = 300;
-    this.vx = 0; this.vy = 0;
-    this.speed = 5;
-    this.jumpPower = 13;
-    this.hp = 100; this.maxHp = 100;
-    this.xp = 0; this.xpToNext = 100;
-    this.level = 1;
-    this.gold = 0;
-    this.def = 5;
-    this.facing = 1;
-    this.onGround = false;
-    this.attacking = false;
-    this.attackTimer = 0;
-    this.invuln = 0;
-    this.animFrame = 0;
-    this.animTimer = 0;
-    this.weapon = 'sword1';
-    this.potions = 3;
-    this.stepTimer = 0;
-    this.combo = 0;
-    this.comboTimer = 0;
-  }
-
-  get weaponStats() { return WEAPONS[this.weapon]; }
-
-  update(platforms, enemies, items, room) {
-    const moveLeft = keys['KeyA'] || keys['ArrowLeft'] || touchState.left;
-    const moveRight = keys['KeyD'] || keys['ArrowRight'] || touchState.right;
-    const doJump = keys['Space'] || keys['KeyW'] || keys['ArrowUp'] || touchState.jump;
-    const doAttack = keys['KeyJ'] || keys['KeyZ'] || touchState.attack;
-    const doPotion = touchState.potion;
-
-    if (moveLeft) { this.vx -= 1.2; this.facing = -1; }
-    if (moveRight) { this.vx += 1.2; this.facing = 1; }
-    this.vx *= FRICTION;
-    this.vx = Math.max(-this.speed, Math.min(this.speed, this.vx));
-
-    if (doJump && this.onGround) {
-      this.vy = -this.jumpPower;
-      this.onGround = false;
-      playJump();
-      spawnParticles(this.x + this.w/2, this.y + this.h, 5, '#888', 2, 4);
+  uploadBtn.addEventListener('click', openFileDialog);
+  placeholder.addEventListener('click', openFileDialog);
+  placeholder.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openFileDialog();
     }
+  });
 
-    this.vy += GRAVITY;
-    this.x += this.vx;
-    this.y += this.vy;
-    this.onGround = false;
+  placeholder.addEventListener('dragover', function (e) {
+    e.preventDefault();
+    placeholder.classList.add('drag');
+  });
+  placeholder.addEventListener('dragleave', function () {
+    placeholder.classList.remove('drag');
+  });
+  placeholder.addEventListener('drop', function (e) {
+    e.preventDefault();
+    placeholder.classList.remove('drag');
+    var file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) loadFile(file);
+  });
 
-    for (let p of platforms) {
-      if (rectIntersect(this, p)) {
-        const overlapX = (this.x + this.w/2) - (p.x + p.w/2);
-        const overlapY = (this.y + this.h/2) - (p.y + p.h/2);
-        const combinedHalfWidths = this.w/2 + p.w/2;
-        const combinedHalfHeights = this.h/2 + p.h/2;
-        const ox = combinedHalfWidths - Math.abs(overlapX);
-        const oy = combinedHalfHeights - Math.abs(overlapY);
-        if (ox < oy) {
-          this.x += overlapX > 0 ? ox : -ox;
-          this.vx = 0;
-        } else {
-          this.y += overlapY > 0 ? oy : -oy;
-          this.vy = 0;
-          if (overlapY > 0) this.onGround = true;
-        }
+  fileInput.addEventListener('change', function (e) {
+    var file = e.target.files[0];
+    if (file) loadFile(file);
+  });
+
+  function loadFile(file) {
+    if (!file.type || file.type.indexOf('image/') !== 0) return;
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      analyze(img);
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }
+
+  function analyze(img) {
+    caption.textContent = 'Обработка…';
+    setTimeout(function () {
+      var w = img.naturalWidth;
+      var h = img.naturalHeight;
+      var scale = Math.min(1, MAX_DIM / Math.max(w, h));
+      w = Math.max(1, Math.round(w * scale));
+      h = Math.max(1, Math.round(h * scale));
+
+      var off = document.createElement('canvas');
+      off.width = w;
+      off.height = h;
+      var octx = off.getContext('2d');
+      octx.drawImage(img, 0, 0, w, h);
+      var imgData = octx.getImageData(0, 0, w, h);
+
+      grid = sobel(imgData, w, h);
+
+      stage.style.aspectRatio = w + ' / ' + h;
+      canvas.width = w;
+      canvas.height = h;
+      placeholder.style.display = 'none';
+      canvas.style.display = 'block';
+      canvas.classList.remove('reveal');
+      void canvas.offsetWidth;
+      canvas.classList.add('reveal');
+      downloadBtn.disabled = false;
+      draw();
+    }, 10);
+  }
+
+  function sobel(imgData, w, h) {
+    var d = imgData.data;
+    var gray = new Float32Array(w * h);
+    for (var i = 0, p = 0; i < d.length; i += 4, p++) {
+      gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    }
+    var mag = new Float32Array(w * h);
+    var maxMag = 1;
+    for (var y = 1; y < h - 1; y++) {
+      for (var x = 1; x < w - 1; x++) {
+        var i00 = (y - 1) * w + (x - 1);
+        var i01 = (y - 1) * w + x;
+        var i02 = (y - 1) * w + (x + 1);
+        var i10 = y * w + (x - 1);
+        var i12 = y * w + (x + 1);
+        var i20 = (y + 1) * w + (x - 1);
+        var i21 = (y + 1) * w + x;
+        var i22 = (y + 1) * w + (x + 1);
+        var gx = -gray[i00] + gray[i02] - 2 * gray[i10] + 2 * gray[i12] - gray[i20] + gray[i22];
+        var gy = -gray[i00] - 2 * gray[i01] - gray[i02] + gray[i20] + 2 * gray[i21] + gray[i22];
+        var m = Math.sqrt(gx * gx + gy * gy);
+        mag[y * w + x] = m;
+        if (m > maxMag) maxMag = m;
       }
     }
-
-    if (this.x < 0) { this.x = 0; this.vx = 0; }
-    if (this.x > room.w - this.w) { this.x = room.w - this.w; this.vx = 0; }
-    if (this.y > room.h + 200) { this.takeDamage(20); this.y = 100; this.vy = 0; }
-
-    if (this.comboTimer > 0) this.comboTimer--;
-    else this.combo = 0;
-
-    if (doAttack && !this.attacking) {
-      this.attacking = true;
-      this.attackTimer = this.weaponStats.speed;
-      this.combo = Math.min(this.combo + 1, 3);
-      this.comboTimer = 40;
-      playSword();
-      this.doAttack(enemies);
-    }
-    if (this.attacking) {
-      this.attackTimer--;
-      if (this.attackTimer <= 0) this.attacking = false;
-    }
-
-    const usePotion = (keys['KeyE'] && activeSlot === 1) || doPotion;
-    if (usePotion && this.potions > 0 && this.hp < this.maxHp) {
-      this.potions--;
-      this.hp = Math.min(this.maxHp, this.hp + 40);
-      playPotion();
-      spawnParticles(this.x + this.w/2, this.y + this.h/2, 12, '#2ecc71', 3, 5);
-      showMessage('Зелье использовано! +40 HP');
-      updateUI();
-      keys['KeyE'] = false;
-      touchState.potion = false;
-    }
-
-    for (let i = items.length - 1; i >= 0; i--) {
-      const it = items[i];
-      if (dist({x:this.x+this.w/2,y:this.y+this.h/2}, {x:it.x,y:it.y}) < 35) {
-        if (it.type === 'gold') { this.gold += it.val; playCoin(); }
-        if (it.type === 'potion') { this.potions++; playPotion(); showMessage('Зелье найдено!'); }
-        if (it.type === 'weapon') {
-          this.weapon = it.weaponKey;
-          showMessage('Найдено: ' + WEAPONS[it.weaponKey].name + '!');
-          document.getElementById('slot0').textContent = WEAPONS[it.weaponKey].icon;
-        }
-        if (it.type === 'xp') { this.gainXp(it.val); }
-        spawnParticles(it.x, it.y, 8, it.color, 2, 4);
-        items.splice(i, 1);
-      }
-    }
-
-    if (this.invuln > 0) this.invuln--;
-
-    this.animTimer++;
-    if (Math.abs(this.vx) > 0.5 && this.onGround) {
-      if (this.animTimer % 8 === 0) this.animFrame = (this.animFrame + 1) % 4;
-      this.stepTimer++;
-      if (this.stepTimer % 20 === 0) playStep();
-    } else {
-      this.animFrame = 0;
-    }
-
-    updateUI();
+    var norm = 255 / maxMag;
+    for (var k = 0; k < mag.length; k++) mag[k] *= norm;
+    return { width: w, height: h, mag: mag };
   }
 
-  doAttack(enemies) {
-    const ws = this.weaponStats;
-    const reach = ws.range;
-    const cx = this.x + this.w/2 + this.facing * 25;
-    const cy = this.y + this.h/2;
-    const arc = this.combo === 3 ? Math.PI : Math.PI/2;
+  function draw() {
+    if (!grid) return;
+    var width = grid.width, height = grid.height, mag = grid.mag;
+    var threshold = +thresholdEl.value;
+    var spacing = +spacingEl.value;
+    var dotSize = +dotSizeEl.value;
+    var dark = invertEl.checked;
 
-    for (let e of enemies) {
-      const ex = e.x + e.w/2, ey = e.y + e.h/2;
-      const d = Math.hypot(ex - cx, ey - cy);
-      if (d < reach) {
-        const angle = Math.atan2(ey - cy, ex - cx);
-        const faceAngle = this.facing === 1 ? 0 : Math.PI;
-        let diff = Math.abs(angle - faceAngle);
-        if (diff > Math.PI) diff = 2*Math.PI - diff;
-        if (diff < arc/2 + 0.3) {
-          const dmg = Math.floor(ws.dmg * (1 + this.combo * 0.2));
-          e.takeDamage(dmg, this.facing * 5);
-          spawnParticles(ex, ey, 6, '#e74c3c', 3, 4);
-          floatTexts.push(new FloatingText(ex, ey, '-' + dmg, '#e74c3c'));
-          playHit();
-        }
-      }
-    }
-  }
+    ctx.fillStyle = dark ? '#17140F' : '#F6F3EA';
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = dark ? '#F2ECDD' : '#211D18';
 
-  takeDamage(amt) {
-    if (this.invuln > 0) return;
-    const real = Math.max(1, amt - this.def * 0.5);
-    this.hp -= real;
-    this.invuln = 40;
-    this.vx = -this.facing * 4;
-    this.vy = -4;
-    spawnParticles(this.x + this.w/2, this.y + this.h/2, 10, '#c0392b', 4, 5);
-    floatTexts.push(new FloatingText(this.x + this.w/2, this.y, '-' + Math.floor(real), '#e74c3c'));
-    playHit();
-    if (this.hp <= 0) gameOver();
-  }
-
-  gainXp(amount) {
-    this.xp += amount;
-    if (this.xp >= this.xpToNext) {
-      this.level++;
-      this.xp -= this.xpToNext;
-      this.xpToNext = Math.floor(this.xpToNext * 1.4);
-      this.maxHp += 15;
-      this.hp = this.maxHp;
-      this.def += 2;
-      playLevelUp();
-      showMessage('⭐ Уровень повышен! Теперь уровень ' + this.level);
-      spawnParticles(this.x + this.w/2, this.y, 20, '#f1c40f', 4, 6);
-    }
-  }
-
-  draw(ctx, camX, camY) {
-    const sx = this.x - camX, sy = this.y - camY;
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath();
-    ctx.ellipse(sx + this.w/2, sy + this.h - 2, 12, 4, 0, 0, Math.PI*2);
-    ctx.fill();
-
-    ctx.fillStyle = this.invuln > 0 && Math.floor(this.invuln/4)%2 ? '#fff' : '#3498db';
-    ctx.fillRect(sx + 4, sy + 16, 20, 24);
-    ctx.fillStyle = '#f5cba7';
-    ctx.fillRect(sx + 6, sy + 2, 16, 14);
-    ctx.fillStyle = '#2c3e50';
-    const eyeOff = this.facing === 1 ? 4 : 0;
-    ctx.fillRect(sx + 8 + eyeOff, sy + 6, 3, 3);
-    ctx.fillRect(sx + 14 + eyeOff, sy + 6, 3, 3);
-
-    ctx.fillStyle = '#2c3e50';
-    const legOffset = this.animFrame % 2 === 0 ? 0 : 3;
-    ctx.fillRect(sx + 6, sy + 40, 6, 8 + (this.onGround ? legOffset : -2));
-    ctx.fillRect(sx + 16, sy + 40, 6, 8 + (this.onGround ? -legOffset : -2));
-
-    if (this.attacking) {
-      const ws = this.weaponStats;
-      const progress = 1 - this.attackTimer / ws.speed;
-      const swing = Math.sin(progress * Math.PI) * (this.combo === 3 ? Math.PI : Math.PI/2);
-      ctx.save();
-      ctx.translate(sx + this.w/2, sy + this.h/2);
-      ctx.rotate(this.facing === 1 ? swing : Math.PI - swing);
-      ctx.fillStyle = ws.color;
-      ctx.fillRect(0, -3, ws.range * 0.6, 6);
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(ws.range * 0.5, -2, 8, 4);
-      ctx.restore();
-    } else {
-      ctx.fillStyle = this.weaponStats.color;
-      ctx.fillRect(sx + (this.facing===1?20:0), sy + 22, 8, 4);
-    }
-
-    ctx.fillStyle = '#8e44ad';
-    ctx.beginPath();
-    ctx.moveTo(sx + 4, sy + 18);
-    ctx.lineTo(sx - 6 + Math.sin(Date.now()/200)*3, sy + 38);
-    ctx.lineTo(sx + 8, sy + 36);
-    ctx.fill();
-  }
-}
-
-// ==================== ENEMY ====================
-class Enemy {
-  constructor(x, y, type) {
-    this.x = x; this.y = y;
-    this.type = type;
-    this.w = 32; this.h = 40;
-    this.vx = 0; this.vy = 0;
-    this.facing = -1;
-    this.hp = 30; this.maxHp = 30;
-    this.dmg = 10;
-    this.speed = 1.5;
-    this.patrolDist = 150;
-    this.startX = x;
-    this.attackCooldown = 0;
-    this.hitFlash = 0;
-    this.animTimer = 0;
-
-    if (type === 'skeleton') {
-      this.hp = this.maxHp = 40; this.dmg = 12; this.speed = 1.2;
-      this.color = '#bdc3c7'; this.eyeColor = '#e74c3c';
-    } else if (type === 'bat') {
-      this.hp = this.maxHp = 20; this.dmg = 8; this.speed = 2.5;
-      this.w = 24; this.h = 20; this.color = '#8e44ad'; this.eyeColor = '#fff';
-    } else if (type === 'orc') {
-      this.hp = this.maxHp = 80; this.dmg = 18; this.speed = 0.9;
-      this.w = 40; this.h = 48; this.color = '#27ae60'; this.eyeColor = '#f39c12';
-    } else if (type === 'boss') {
-      this.hp = this.maxHp = 300; this.dmg = 25; this.speed = 1.8;
-      this.w = 64; this.h = 80; this.color = '#c0392b'; this.eyeColor = '#f1c40f';
-    }
-  }
-
-  update(platforms, player) {
-    const d = dist({x:this.x+this.w/2,y:this.y+this.h/2}, {x:player.x+player.w/2,y:player.y+player.h/2});
-    const canSee = d < 250;
-
-    if (this.type === 'bat') {
-      if (canSee) {
-        const angle = Math.atan2((player.y+player.h/2) - (this.y+this.h/2), (player.x+player.w/2) - (this.x+this.w/2));
-        this.vx += Math.cos(angle) * 0.15;
-        this.vy += Math.sin(angle) * 0.15;
-      }
-      this.vx *= 0.95; this.vy *= 0.95;
-      this.x += this.vx; this.y += this.vy;
-    } else {
-      if (canSee) {
-        if (player.x + player.w/2 > this.x + this.w/2) {
-          this.vx += 0.2; this.facing = 1;
-        } else {
-          this.vx -= 0.2; this.facing = -1;
-        }
-        if (this.onGround && Math.abs(player.y - this.y) > 40 && Math.random() < 0.02) {
-          this.vy = -10;
-        }
-      } else {
-        if (this.x > this.startX + this.patrolDist) this.facing = -1;
-        if (this.x < this.startX - this.patrolDist) this.facing = 1;
-        this.vx += this.facing * 0.1;
-      }
-      this.vx = Math.max(-this.speed, Math.min(this.speed, this.vx));
-      this.vx *= 0.9;
-      this.vy += GRAVITY;
-      this.x += this.vx; this.y += this.vy;
-      this.onGround = false;
-
-      for (let p of platforms) {
-        if (rectIntersect(this, p)) {
-          const overlapX = (this.x + this.w/2) - (p.x + p.w/2);
-          const overlapY = (this.y + this.h/2) - (p.y + p.h/2);
-          const combinedHalfWidths = this.w/2 + p.w/2;
-          const combinedHalfHeights = this.h/2 + p.h/2;
-          const ox = combinedHalfWidths - Math.abs(overlapX);
-          const oy = combinedHalfHeights - Math.abs(overlapY);
-          if (ox < oy) {
-            this.x += overlapX > 0 ? ox : -ox; this.vx = 0;
-            if (this.type !== 'boss') this.facing *= -1;
-          } else {
-            this.y += overlapY > 0 ? oy : -oy; this.vy = 0;
-            if (overlapY > 0) this.onGround = true;
+    var count = 0;
+    for (var cy = 0; cy < height; cy += spacing) {
+      var yEnd = Math.min(cy + spacing, height);
+      for (var cx = 0; cx < width; cx += spacing) {
+        var xEnd = Math.min(cx + spacing, width);
+        var best = -1, bx = cx, by = cy;
+        for (var y = cy; y < yEnd; y++) {
+          var row = y * width;
+          for (var x = cx; x < xEnd; x++) {
+            var v = mag[row + x];
+            if (v > best) { best = v; bx = x; by = y; }
           }
         }
-      }
-    }
-
-    if (this.attackCooldown > 0) this.attackCooldown--;
-    if (rectIntersect(this, player) && this.attackCooldown <= 0) {
-      player.takeDamage(this.dmg);
-      this.attackCooldown = 50;
-    }
-
-    if (this.hitFlash > 0) this.hitFlash--;
-    this.animTimer++;
-  }
-
-  takeDamage(amt, knockback) {
-    this.hp -= amt;
-    this.hitFlash = 10;
-    this.vx = knockback;
-    this.vy = -3;
-    if (this.hp <= 0) {
-      spawnParticles(this.x + this.w/2, this.y + this.h/2, 15, this.color, 4, 5);
-      game.player.gainXp(this.type === 'boss' ? 200 : this.type === 'orc' ? 40 : 20);
-      if (Math.random() < 0.3) {
-        game.items.push(new Item(this.x + this.w/2, this.y, 'gold', rand(5, 20)));
-      }
-      if (Math.random() < 0.15) {
-        game.items.push(new Item(this.x + this.w/2, this.y - 20, 'potion'));
-      }
-      if (this.type === 'boss' || Math.random() < 0.05) {
-        const wKeys = Object.keys(WEAPONS).filter(k => k !== 'sword1');
-        game.items.push(new Item(this.x + this.w/2, this.y - 30, 'weapon', wKeys[randInt(0, wKeys.length)]));
-      }
-    }
-  }
-
-  draw(ctx, camX, camY) {
-    const sx = this.x - camX, sy = this.y - camY;
-    if (sx < -100 || sx > W + 100 || sy < -100 || sy > H + 100) return;
-
-    ctx.globalAlpha = this.hitFlash > 0 ? 0.6 : 1;
-
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.beginPath();
-    ctx.ellipse(sx + this.w/2, sy + this.h - 2, this.w/2.5, 4, 0, 0, Math.PI*2);
-    ctx.fill();
-
-    if (this.type === 'bat') {
-      const wing = Math.sin(this.animTimer * 0.3) * 8;
-      ctx.fillStyle = this.color;
-      ctx.beginPath();
-      ctx.ellipse(sx + this.w/2, sy + this.h/2, 10, 8, 0, 0, Math.PI*2);
-      ctx.fill();
-      ctx.fillStyle = '#5b2c6f';
-      ctx.beginPath();
-      ctx.moveTo(sx + this.w/2, sy + this.h/2);
-      ctx.lineTo(sx - wing, sy + 5);
-      ctx.lineTo(sx + this.w/2, sy + 12);
-      ctx.lineTo(sx + this.w + wing, sy + 5);
-      ctx.fill();
-      ctx.fillStyle = this.eyeColor;
-      ctx.fillRect(sx + 6, sy + 6, 3, 3);
-      ctx.fillRect(sx + 14, sy + 6, 3, 3);
-    } else {
-      ctx.fillStyle = this.hitFlash > 0 ? '#fff' : this.color;
-      ctx.fillRect(sx + 4, sy + 12, this.w - 8, this.h - 16);
-      ctx.fillStyle = this.hitFlash > 0 ? '#fff' : (this.type === 'skeleton' ? '#ecf0f1' : this.color);
-      ctx.fillRect(sx + 6, sy + 2, this.w - 12, 12);
-      ctx.fillStyle = this.eyeColor;
-      const eyeOff = this.facing === 1 ? 2 : -2;
-      ctx.fillRect(sx + this.w/2 - 4 + eyeOff, sy + 5, 3, 3);
-      ctx.fillRect(sx + this.w/2 + 2 + eyeOff, sy + 5, 3, 3);
-      if (this.type === 'orc' || this.type === 'boss') {
-        ctx.fillStyle = '#7f8c8d';
-        ctx.fillRect(sx + (this.facing===1?this.w-4:0), sy + 18, 12, 4);
-      }
-      ctx.fillStyle = this.type === 'skeleton' ? '#bdc3c7' : '#2c3e50';
-      const legOff = Math.sin(this.animTimer * 0.2) * 3;
-      ctx.fillRect(sx + 6, sy + this.h - 10, 6, 10 + legOff);
-      ctx.fillRect(sx + this.w - 14, sy + this.h - 10, 6, 10 - legOff);
-    }
-
-    if (this.hp < this.maxHp) {
-      ctx.fillStyle = '#2c3e50';
-      ctx.fillRect(sx, sy - 10, this.w, 5);
-      ctx.fillStyle = '#e74c3c';
-      ctx.fillRect(sx, sy - 10, this.w * (this.hp / this.maxHp), 5);
-    }
-
-    ctx.globalAlpha = 1;
-  }
-}
-
-// ==================== ITEM ====================
-class Item {
-  constructor(x, y, type, val) {
-    this.x = x; this.y = y;
-    this.type = type; this.val = val;
-    this.bob = rand(0, Math.PI * 2);
-    this.color = type === 'gold' ? '#f1c40f' : type === 'potion' ? '#e74c3c' : type === 'weapon' ? '#9b59b6' : '#3498db';
-  }
-  update() { this.bob += 0.05; }
-  draw(ctx, camX, camY) {
-    const sx = this.x - camX;
-    const sy = this.y - camY + Math.sin(this.bob) * 4;
-    ctx.fillStyle = this.color;
-    ctx.shadowColor = this.color;
-    ctx.shadowBlur = 10;
-    if (this.type === 'gold') {
-      ctx.beginPath();
-      ctx.arc(sx, sy, 6, 0, Math.PI*2);
-      ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.font = '10px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('$', sx, sy + 3);
-    } else if (this.type === 'potion') {
-      ctx.fillRect(sx - 5, sy - 7, 10, 14);
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(sx - 2, sy - 10, 4, 3);
-    } else if (this.type === 'weapon') {
-      ctx.fillStyle = '#9b59b6';
-      ctx.fillRect(sx - 8, sy - 2, 16, 4);
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(sx + 4, sy - 3, 6, 6);
-    } else {
-      ctx.beginPath();
-      ctx.arc(sx, sy, 5, 0, Math.PI*2);
-      ctx.fill();
-    }
-    ctx.shadowBlur = 0;
-  }
-}
-
-// ==================== PLATFORM ====================
-class Platform {
-  constructor(x, y, w, h, type='normal') {
-    this.x = x; this.y = y; this.w = w; this.h = h; this.type = type;
-  }
-  draw(ctx, camX, camY) {
-    const sx = this.x - camX, sy = this.y - camY;
-    if (sx + this.w < 0 || sx > W || sy + this.h < 0 || sy > H) return;
-
-    if (this.type === 'normal') {
-      ctx.fillStyle = '#4a4a5a';
-      ctx.fillRect(sx, sy, this.w, this.h);
-      ctx.fillStyle = '#5a5a6a';
-      for (let i = 0; i < this.w; i += 20) {
-        for (let j = 0; j < this.h; j += 10) {
-          const off = (j/10)%2 === 0 ? 0 : 10;
-          ctx.fillRect(sx + i + off, sy + j, 18, 8);
+        if (best >= threshold) {
+          var jitter = spacing * 0.2;
+          var jx = bx + (Math.random() - 0.5) * jitter;
+          var jy = by + (Math.random() - 0.5) * jitter;
+          var r = dotSize * (0.55 + 0.45 * (best / 255));
+          ctx.beginPath();
+          ctx.arc(jx, jy, r, 0, Math.PI * 2);
+          ctx.fill();
+          count++;
         }
       }
-      ctx.strokeStyle = '#3a3a4a';
-      ctx.strokeRect(sx, sy, this.w, this.h);
-    } else if (this.type === 'grass') {
-      ctx.fillStyle = '#5a4a3a';
-      ctx.fillRect(sx, sy, this.w, this.h);
-      ctx.fillStyle = '#27ae60';
-      ctx.fillRect(sx, sy, this.w, 6);
-      for (let i = 0; i < this.w; i += 8) {
-        ctx.fillRect(sx + i, sy - 4, 3, 6);
-      }
-    } else if (this.type === 'spike') {
-      ctx.fillStyle = '#7f8c8d';
-      ctx.fillRect(sx, sy + 10, this.w, this.h - 10);
-      ctx.fillStyle = '#95a5a6';
-      for (let i = 0; i < this.w; i += 12) {
-        ctx.beginPath();
-        ctx.moveTo(sx + i, sy + 10);
-        ctx.lineTo(sx + i + 6, sy);
-        ctx.lineTo(sx + i + 12, sy + 10);
-        ctx.fill();
-      }
     }
-  }
-}
-
-// ==================== DOOR ====================
-class Door {
-  constructor(x, y, targetRoom) {
-    this.x = x; this.y = y; this.w = 40; this.h = 60;
-    this.targetRoom = targetRoom;
-  }
-  draw(ctx, camX, camY) {
-    const sx = this.x - camX, sy = this.y - camY;
-    ctx.fillStyle = '#5d4037';
-    ctx.fillRect(sx, sy, this.w, this.h);
-    ctx.fillStyle = '#3e2723';
-    ctx.fillRect(sx + 5, sy + 5, this.w - 10, this.h - 10);
-    ctx.fillStyle = '#f1c40f';
-    ctx.beginPath();
-    ctx.arc(sx + 30, sy + 30, 4, 0, Math.PI*2);
-    ctx.fill();
-    ctx.shadowColor = '#f1c40f';
-    ctx.shadowBlur = 15;
-    ctx.strokeStyle = '#f1c40f';
-    ctx.strokeRect(sx - 2, sy - 2, this.w + 4, this.h + 4);
-    ctx.shadowBlur = 0;
-  }
-}
-
-// ==================== ROOM ====================
-class Room {
-  constructor(id, w, h) {
-    this.id = id; this.w = w; this.h = h;
-    this.platforms = [];
-    this.enemies = [];
-    this.items = [];
-    this.doors = [];
-    this.spikes = [];
-    this.generate();
+    caption.textContent = 'Точек в рисунке: ' + count.toLocaleString('ru-RU') + ' (' + width + '×' + height + ' пикс.)';
   }
 
-  generate() {
-    this.platforms.push(new Platform(0, this.h - 40, this.w, 40, 'grass'));
-    this.platforms.push(new Platform(0, 0, this.w, 40, 'normal'));
-    this.platforms.push(new Platform(0, 0, 40, this.h, 'normal'));
-    this.platforms.push(new Platform(this.w - 40, 0, 40, this.h, 'normal'));
+  [thresholdEl, spacingEl, dotSizeEl].forEach(function (el) {
+    el.addEventListener('input', function () {
+      syncLabels();
+      draw();
+    });
+  });
+  invertEl.addEventListener('change', draw);
 
-    const numPlatforms = randInt(5, 12);
-    for (let i = 0; i < numPlatforms; i++) {
-      const pw = randInt(80, 200);
-      const px = randInt(80, this.w - pw - 80);
-      const py = randInt(120, this.h - 150);
-      this.platforms.push(new Platform(px, py, pw, 20, 'normal'));
-    }
-
-    if (this.id > 1) {
-      const numSpikes = randInt(2, 5);
-      for (let i = 0; i < numSpikes; i++) {
-        const sx = randInt(100, this.w - 150);
-        this.platforms.push(new Platform(sx, this.h - 50, 60, 20, 'spike'));
-        this.spikes.push({x: sx, y: this.h - 50, w: 60, h: 20});
-      }
-    }
-
-    const enemyCount = randInt(2, 4 + Math.floor(this.id / 2));
-    const types = this.id < 3 ? ['skeleton', 'bat'] : this.id < 5 ? ['skeleton', 'bat', 'orc'] : ['skeleton', 'bat', 'orc', 'boss'];
-    for (let i = 0; i < enemyCount; i++) {
-      const t = types[randInt(0, types.length)];
-      let ex, ey, safe = false;
-      while (!safe) {
-        ex = randInt(100, this.w - 100);
-        ey = randInt(100, this.h - 100);
-        safe = true;
-        for (let p of this.platforms) {
-          if (ex > p.x && ex < p.x + p.w && ey > p.y - 50 && ey < p.y + p.h) safe = false;
-        }
-      }
-      this.enemies.push(new Enemy(ex, ey, t));
-    }
-
-    if (this.id % 4 === 0) {
-      this.enemies.push(new Enemy(this.w/2, this.h - 150, 'boss'));
-    }
-
-    for (let i = 0; i < randInt(3, 6); i++) {
-      this.items.push(new Item(randInt(80, this.w - 80), randInt(80, this.h - 100), 'gold', rand(5, 15)));
-    }
-    if (Math.random() < 0.5) {
-      this.items.push(new Item(randInt(80, this.w - 80), randInt(80, this.h - 100), 'potion'));
-    }
-
-    if (this.id < 10) {
-      this.doors.push(new Door(this.w - 80, this.h - 100, this.id + 1));
-    }
+  function syncLabels() {
+    thresholdVal.textContent = thresholdEl.value;
+    spacingVal.textContent = spacingEl.value;
+    dotSizeVal.textContent = (+dotSizeEl.value).toFixed(1);
   }
-}
+  syncLabels();
 
-// ==================== GAME ====================
-class Game {
-  constructor() {
-    this.player = new Player();
-    this.rooms = {};
-    this.currentRoom = 1;
-    this.rooms[1] = new Room(1, 1600, 800);
-    this.platforms = this.rooms[1].platforms;
-    this.enemies = this.rooms[1].enemies;
-    this.items = this.rooms[1].items;
-    this.doors = this.rooms[1].doors;
-    this.spikes = this.rooms[1].spikes;
-    this.camX = 0; this.camY = 0;
-    this.shake = 0;
-    this.running = false;
-  }
-
-  loadRoom(id) {
-    if (!this.rooms[id]) {
-      this.rooms[id] = new Room(id, 1600 + id * 200, 800 + (id%2)*200);
-    }
-    const r = this.rooms[id];
-    this.platforms = r.platforms;
-    this.enemies = r.enemies;
-    this.items = r.items;
-    this.doors = r.doors;
-    this.spikes = r.spikes;
-    this.currentRoom = id;
-    this.player.x = 80;
-    this.player.y = 300;
-    this.player.vx = 0; this.player.vy = 0;
-    showMessage('Комната ' + id);
-  }
-
-  update() {
-    if (!this.running) return;
-
-    this.player.update(this.platforms, this.enemies, this.items, this.rooms[this.currentRoom]);
-
-    for (let i = this.enemies.length - 1; i >= 0; i--) {
-      this.enemies[i].update(this.platforms, this.player);
-      if (this.enemies[i].hp <= 0) {
-        this.enemies.splice(i, 1);
-      }
-    }
-
-    for (let it of this.items) it.update();
-
-    for (let s of this.spikes) {
-      if (rectIntersect(this.player, s)) {
-        this.player.takeDamage(5);
-      }
-    }
-
-    for (let d of this.doors) {
-      if (rectIntersect(this.player, d)) {
-        this.loadRoom(d.targetRoom);
-        break;
-      }
-    }
-
-    const targetCamX = this.player.x + this.player.w/2 - W/2;
-    const targetCamY = this.player.y + this.player.h/2 - H/2;
-    this.camX = lerp(this.camX, targetCamX, 0.08);
-    this.camY = lerp(this.camY, targetCamY, 0.08);
-    this.camX = Math.max(0, Math.min(this.rooms[this.currentRoom].w - W, this.camX));
-    this.camY = Math.max(0, Math.min(this.rooms[this.currentRoom].h - H, this.camY));
-
-    if (this.shake > 0) {
-      this.camX += rand(-this.shake, this.shake);
-      this.camY += rand(-this.shake, this.shake);
-      this.shake *= 0.9;
-      if (this.shake < 0.5) this.shake = 0;
-    }
-
-    for (let i = particles.length - 1; i >= 0; i--) {
-      particles[i].update();
-      if (particles[i].life <= 0) particles.splice(i, 1);
-    }
-    for (let i = floatTexts.length - 1; i >= 0; i--) {
-      floatTexts[i].update();
-      if (floatTexts[i].life <= 0) floatTexts.splice(i, 1);
-    }
-  }
-
-  draw() {
-    const grad = CTX.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, '#1a1a2e');
-    grad.addColorStop(1, '#16213e');
-    CTX.fillStyle = grad;
-    CTX.fillRect(0, 0, W, H);
-
-    CTX.fillStyle = 'rgba(255,255,255,0.03)';
-    for (let i = 0; i < 20; i++) {
-      const px = ((i * 137 + this.camX * 0.1) % (W + 100)) - 50;
-      const py = ((i * 89) % H);
-      CTX.beginPath();
-      CTX.arc(px, py, rand(1, 3), 0, Math.PI*2);
-      CTX.fill();
-    }
-
-    for (let p of this.platforms) p.draw(CTX, this.camX, this.camY);
-    for (let d of this.doors) d.draw(CTX, this.camX, this.camY);
-    for (let it of this.items) it.draw(CTX, this.camX, this.camY);
-    for (let e of this.enemies) e.draw(CTX, this.camX, this.camY);
-    this.player.draw(CTX, this.camX, this.camY);
-    for (let p of particles) p.draw(CTX, this.camX, this.camY);
-    for (let t of floatTexts) t.draw(CTX, this.camX, this.camY);
-
-    const vig = CTX.createRadialGradient(W/2, H/2, H/3, W/2, H/2, H);
-    vig.addColorStop(0, 'rgba(0,0,0,0)');
-    vig.addColorStop(1, 'rgba(0,0,0,0.6)');
-    CTX.fillStyle = vig;
-    CTX.fillRect(0, 0, W, H);
-
-    this.drawMinimap();
-  }
-
-  drawMinimap() {
-    const mCanvas = document.getElementById('minimap');
-    const mCtx = mCanvas.getContext('2d');
-    mCanvas.width = 140; mCanvas.height = 100;
-    const r = this.rooms[this.currentRoom];
-    const scaleX = 130 / r.w;
-    const scaleY = 90 / r.h;
-
-    mCtx.fillStyle = '#1a1a2e';
-    mCtx.fillRect(0, 0, 140, 100);
-
-    mCtx.fillStyle = '#4a4a5a';
-    for (let p of this.platforms) {
-      mCtx.fillRect(5 + p.x * scaleX, 5 + p.y * scaleY, Math.max(2, p.w * scaleX), Math.max(2, p.h * scaleY));
-    }
-
-    mCtx.fillStyle = '#3498db';
-    mCtx.fillRect(5 + this.player.x * scaleX, 5 + this.player.y * scaleY, 4, 4);
-
-    mCtx.fillStyle = '#e74c3c';
-    for (let e of this.enemies) {
-      mCtx.fillRect(5 + e.x * scaleX, 5 + e.y * scaleY, 3, 3);
-    }
-
-    mCtx.fillStyle = '#f1c40f';
-    for (let it of this.items) {
-      mCtx.fillRect(5 + it.x * scaleX, 5 + it.y * scaleY, 2, 2);
-    }
-  }
-}
-
-let game;
-let animId;
-
-function updateUI() {
-  const p = game.player;
-  document.getElementById('hp-text').textContent = Math.max(0, Math.floor(p.hp)) + '/' + p.maxHp;
-  document.getElementById('hp-fill').style.width = (Math.max(0, p.hp) / p.maxHp * 100) + '%';
-  document.getElementById('xp-text').textContent = p.xp + '/' + p.xpToNext;
-  document.getElementById('xp-fill').style.width = (p.xp / p.xpToNext * 100) + '%';
-  document.getElementById('lvl-text').textContent = p.level;
-  document.getElementById('gold-text').textContent = p.gold;
-  document.getElementById('dmg-text').textContent = Math.floor(p.weaponStats.dmg * (1 + p.combo * 0.2));
-  document.getElementById('def-text').textContent = p.def;
-  document.getElementById('spd-text').textContent = p.speed.toFixed(1);
-  document.getElementById('room-text').textContent = game.currentRoom;
-  document.getElementById('pot-qty').textContent = p.potions;
-}
-
-function showMessage(text) {
-  const el = document.getElementById('message');
-  el.textContent = text;
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2000);
-}
-
-function startGame() {
-  document.getElementById('startScreen').style.display = 'none';
-  const doc = document.documentElement;
-  if (doc.requestFullscreen) doc.requestFullscreen().catch(()=>{});
-  else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
-  else if (doc.msRequestFullscreen) doc.msRequestFullscreen();
-  if (screen.orientation && screen.orientation.lock) {
-    screen.orientation.lock('landscape').catch(()=>{});
-  }
-  game = new Game();
-  game.running = true;
-  loop();
-}
-
-function restartGame() {
-  document.getElementById('gameOverScreen').style.display = 'none';
-  game = new Game();
-  game.running = true;
-  particles = [];
-  floatTexts = [];
-  loop();
-}
-
-function gameOver() {
-  game.running = false;
-  cancelAnimationFrame(animId);
-  const p = game.player;
-  document.getElementById('death-stats').innerHTML =
-    'Достигнут уровень: <b>' + p.level + '</b> | Золото: <b>' + p.gold + '</b> | Комната: <b>' + game.currentRoom + '</b>';
-  document.getElementById('gameOverScreen').style.display = 'flex';
-}
-
-function loop() {
-  if (!game.running) return;
-  game.update();
-  game.draw();
-  animId = requestAnimationFrame(loop);
-}
-
-document.getElementById('btn-start').addEventListener('click', startGame);
-document.getElementById('btn-restart').addEventListener('click', restartGame);
-
-selectSlot(0);
+  downloadBtn.addEventListener('click', function () {
+    if (!grid) return;
+    var link = document.createElement('a');
+    link.download = 'engraving-points.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+})();
 </script>
 </body>
 </html>
