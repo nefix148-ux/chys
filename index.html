@@ -1,616 +1,661 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Гравюра — контуры и ASCII</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@72,400;72,500;72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --paper: #E8E4D6;
-      --paper-light: #F6F3EA;
-      --ink: #211D18;
-      --ink-soft: #5C5644;
-      --verdigris: #4B6358;
-      --verdigris-dark: #3B4E45;
-      --line: #C9C2AC;
-      --accent: #4B6358;
-      --out-bg: #1a1814;
-      --out-fg: #e8e4d6;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Гравюра — контуры точками</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@72,400;72,500;72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --paper: #E8E4D6;
+  --paper-light: #F6F3EA;
+  --ink: #211D18;
+  --ink-soft: #5C5644;
+  --verdigris: #4B6358;
+  --verdigris-dark: #3B4E45;
+  --line: #C9C2AC;
+  --accent: #8B6914;
+}
 
-    body {
-      background: var(--paper);
-      color: var(--ink);
-      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      -webkit-font-smoothing: antialiased;
-      -webkit-tap-highlight-color: transparent;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 28px 16px 56px;
-    }
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
-    h1 {
-      font-family: 'Fraunces', Georgia, serif;
-      font-weight: 600;
-      font-size: 1.75rem;
-      letter-spacing: -0.02em;
-      margin-bottom: 6px;
-      color: var(--ink);
-    }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 100vh;
+  padding: 20px;
+}
 
-    .subtitle {
-      color: var(--ink-soft);
-      font-size: 0.95rem;
-      margin-bottom: 28px;
-      text-align: center;
-      max-width: 520px;
-      line-height: 1.5;
-    }
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+}
 
-    .panel {
-      background: var(--paper-light);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 20px 22px;
-      width: 100%;
-      max-width: 960px;
-      margin-bottom: 18px;
-      box-shadow: 0 1px 0 rgba(33,29,24,0.04);
-    }
+header {
+  text-align: center;
+  margin-bottom: 30px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+}
 
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 14px 18px;
-      align-items: flex-end;
-    }
+header h1 {
+  font-family: 'Fraunces', serif;
+  font-size: 2rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
 
-    .control-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      min-width: 130px;
-    }
+header p {
+  color: var(--ink-soft);
+  margin-top: 8px;
+  font-size: 0.9rem;
+}
 
-    label {
-      font-size: 0.75rem;
-      color: var(--ink-soft);
-      font-weight: 500;
-      letter-spacing: 0.01em;
-    }
+.controls {
+  background: var(--paper-light);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
 
-    input[type="file"] { display: none; }
+.upload-zone {
+  border: 2px dashed var(--line);
+  border-radius: 8px;
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 16px;
+}
 
-    .btn {
-      background: var(--verdigris);
-      color: #f6f3ea;
-      border: none;
-      border-radius: 9px;
-      padding: 10px 18px;
-      font-size: 0.9rem;
-      font-weight: 500;
-      font-family: inherit;
-      cursor: pointer;
-      transition: background 0.15s, transform 0.1s;
-    }
-    .btn:hover { background: var(--verdigris-dark); }
-    .btn:active { transform: scale(0.97); }
-    .btn.success { background: var(--ink); }
-    .btn.success:hover { background: #3a342c; }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.upload-zone:hover {
+  border-color: var(--verdigris);
+  background: rgba(75, 99, 88, 0.03);
+}
 
-    select, input[type="range"] {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      border-radius: 7px;
-      color: var(--ink);
-      padding: 8px 11px;
-      font-size: 0.88rem;
-      font-family: inherit;
-    }
-    select { cursor: pointer; min-width: 175px; }
-    input[type="range"] {
-      width: 155px;
-      padding: 0;
-      accent-color: var(--verdigris);
-    }
+.upload-zone.dragover {
+  border-color: var(--verdigris);
+  background: rgba(75, 99, 88, 0.08);
+}
 
-    .value {
-      font-size: 0.78rem;
-      color: var(--verdigris);
-      font-variant-numeric: tabular-nums;
-      font-weight: 500;
-    }
+.upload-zone input {
+  display: none;
+}
 
-    .preview-row {
-      display: flex;
-      gap: 14px;
-      flex-wrap: wrap;
-      margin-top: 16px;
-    }
+.upload-zone .icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
 
-    .preview-box {
-      flex: 1;
-      min-width: 180px;
-      background: #1a1814;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px;
-      text-align: center;
-    }
+.settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
 
-    .preview-box img {
-      max-width: 100%;
-      max-height: 170px;
-      border-radius: 5px;
-      display: block;
-      margin: 0 auto;
-    }
+.setting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
-    .preview-label {
-      font-size: 0.72rem;
-      color: #a89f8a;
-      margin-bottom: 7px;
-      font-weight: 500;
-    }
+.setting-group label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
 
-    #output {
-      width: 100%;
-      max-width: 960px;
-      background: var(--out-bg);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 16px;
-      overflow: auto;
-      max-height: 70vh;
-      transition: background 0.2s;
-    }
+.setting-group select,
+.setting-group input[type="range"],
+.setting-group input[type="number"] {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
 
-    #ascii {
-      font-family: 'IBM Plex Mono', 'Courier New', Courier, monospace;
-      font-size: 8px;
-      line-height: 1.08;
-      white-space: pre;
-      color: var(--out-fg);
-      margin: 0;
-      letter-spacing: 0;
-      transition: color 0.2s, font-size 0.15s;
-    }
+.setting-group input[type="range"] {
+  padding: 0;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--line);
+  border-radius: 3px;
+  outline: none;
+  margin-top: 8px;
+}
 
-    #ascii.braille-mode {
-      font-size: 12px;
-      line-height: 1.0;
-      letter-spacing: -0.4px;
-    }
+.setting-group input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--verdigris);
+  cursor: pointer;
+}
 
-    .status {
-      margin-top: 12px;
-      font-size: 0.85rem;
-      color: var(--ink-soft);
-      min-height: 1.2em;
-    }
-    .status.ok { color: var(--verdigris); }
-    .status.err { color: #a33; }
+.range-value {
+  font-size: 0.85rem;
+  color: var(--verdigris-dark);
+  font-weight: 500;
+}
 
-    .hint {
-      font-size: 0.8rem;
-      color: var(--ink-soft);
-      margin-top: 10px;
-      line-height: 1.45;
-    }
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 
-    footer {
-      margin-top: 32px;
-      font-size: 0.8rem;
-      color: var(--ink-soft);
-    }
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 
-    @media (max-width: 640px) {
-      .controls { flex-direction: column; align-items: stretch; }
-      .control-group { width: 100%; }
-      input[type="range"] { width: 100%; }
-      h1 { font-size: 1.45rem; }
-    }
-  </style>
+.btn-primary {
+  background: var(--verdigris);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--verdigris-dark);
+}
+
+.btn-secondary {
+  background: white;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.btn-secondary:hover {
+  background: var(--paper);
+  border-color: var(--verdigris);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.output-section {
+  margin-top: 20px;
+}
+
+.output-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.output-header h2 {
+  font-family: 'Fraunces', serif;
+  font-size: 1.3rem;
+  font-weight: 500;
+}
+
+.output-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.output-display {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  overflow: auto;
+  max-height: 70vh;
+}
+
+#ascii-output {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 6px;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: pre;
+  color: var(--ink);
+  user-select: all;
+  -webkit-user-select: all;
+  cursor: text;
+}
+
+.preview-image {
+  max-width: 100%;
+  border-radius: 8px;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  transition: transform 0.3s;
+  z-index: 1000;
+}
+
+.toast.show {
+  transform: translateX(-50%) translateY(0);
+}
+
+.mode-indicator {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--verdigris);
+  color: white;
+}
+
+.image-preview-container {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.image-preview-container img {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+.share-note {
+  background: rgba(75, 99, 88, 0.08);
+  border-left: 3px solid var(--verdigris);
+  padding: 12px 16px;
+  border-radius: 0 8px 8px 0;
+  margin-top: 16px;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab.active {
+  color: var(--verdigris-dark);
+  border-bottom-color: var(--verdigris);
+}
+
+.tab:hover:not(.active) {
+  color: var(--ink);
+}
+
+.hidden { display: none !important; }
+
+@media (max-width: 600px) {
+  body { padding: 12px; }
+  header h1 { font-size: 1.5rem; }
+  .settings { grid-template-columns: 1fr; }
+  #ascii-output { font-size: 4px; }
+  .btn { padding: 8px 14px; font-size: 0.85rem; }
+}
+</style>
 </head>
 <body>
-  <h1>Гравюра</h1>
-  <p class="subtitle">
-    Загрузи фото → получи контуры точками, ASCII или Braille.
-    Режим Braille лучше всего вставляется в Telegram.
-  </p>
+<div class="container">
+  <header>
+    <h1>Гравюра — контуры точками</h1>
+    <p>Преобразуйте изображение в текстовое искусство</p>
+  </header>
 
-  <div class="panel">
-    <div class="controls">
-      <div class="control-group">
-        <label>Изображение</label>
-        <button class="btn" id="btnLoad" type="button">Загрузить фото</button>
-        <input type="file" id="fileInput" accept="image/*" />
-      </div>
+  <div class="controls">
+    <div class="upload-zone" id="uploadZone">
+      <div class="icon">📷</div>
+      <div><strong>Нажмите или перетащите изображение</strong></div>
+      <div style="font-size:0.8rem; color: var(--ink-soft); margin-top:4px;">PNG, JPG, WebP</div>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
 
-      <div class="control-group">
+    <div class="image-preview-container hidden" id="previewContainer">
+      <img id="previewImg" src="" alt="Preview">
+    </div>
+
+    <div class="settings">
+      <div class="setting-group">
         <label>Режим</label>
-        <select id="mode">
-          <option value="contour">Контуры точками</option>
-          <option value="ascii">Символьный ASCII</option>
-          <option value="braille">Braille (Telegram)</option>
+        <select id="modeSelect">
+          <option value="dots">Точки (гравюра)</option>
+          <option value="full">Все символы (ASCII)</option>
+          <option value="blocks">Блоки ██</option>
+          <option value="binary">Двоичный (0/1)</option>
         </select>
       </div>
 
-      <div class="control-group">
-        <label>Фон</label>
-        <select id="bgMode">
-          <option value="dark">Тёмный</option>
-          <option value="light">Светлый (бумага)</option>
+      <div class="setting-group">
+        <label>Разрешение (ширина в символах): <span class="range-value" id="widthValue">120</span></label>
+        <input type="range" id="widthRange" min="40" max="300" value="120">
+      </div>
+
+      <div class="setting-group">
+        <label>Контраст: <span class="range-value" id="contrastValue">1.0</span></label>
+        <input type="range" id="contrastRange" min="0.5" max="2.0" step="0.1" value="1.0">
+      </div>
+
+      <div class="setting-group">
+        <label>Инвертировать</label>
+        <select id="invertSelect">
+          <option value="no">Нет</option>
+          <option value="yes">Да</option>
         </select>
       </div>
+    </div>
 
-      <div class="control-group">
-        <label>Ширина <span class="value" id="widthVal">140</span></label>
-        <input type="range" id="width" min="60" max="260" value="140" />
-      </div>
+    <div class="share-note">
+      💡 <strong>Для Telegram/TikTok:</strong> Используйте разрешение 150–250 и экспортируйте как PNG. Картинка будет чёткой и читаемой.
+    </div>
 
-      <div class="control-group">
-        <label>Чувствительность <span class="value" id="threshVal">35</span></label>
-        <input type="range" id="thresh" min="8" max="90" value="35" />
-      </div>
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn btn-primary" id="generateBtn" disabled>🎨 Сгенерировать</button>
+    </div>
+  </div>
 
-      <div class="control-group" style="margin-left: auto;">
-        <label>&nbsp;</label>
-        <button class="btn success" id="btnCopy" type="button" disabled>Скопировать</button>
+  <div class="output-section hidden" id="outputSection">
+    <div class="output-header">
+      <h2>Результат <span class="mode-indicator" id="modeIndicator">Точки</span></h2>
+      <div class="output-actions">
+        <button class="btn btn-secondary" id="copyTextBtn">📋 Копировать текст</button>
+        <button class="btn btn-secondary" id="copyImageBtn">🖼️ Копировать как PNG</button>
+        <button class="btn btn-primary" id="downloadBtn">⬇️ Скачать PNG</button>
       </div>
     </div>
 
-    <div class="preview-row" id="previewRow" style="display: none;">
-      <div class="preview-box">
-        <div class="preview-label">Оригинал</div>
-        <img id="previewImg" alt="preview" />
+    <div class="tabs">
+      <div class="tab active" data-tab="visual">Визуальный</div>
+      <div class="tab" data-tab="text">Текстовый (копируемый)</div>
+    </div>
+
+    <div id="visualTab">
+      <div class="output-display" id="canvasContainer">
+        <canvas id="outputCanvas"></canvas>
       </div>
     </div>
 
-    <div class="status" id="status"></div>
-    <p class="hint" id="hint">
-      Контуры теперь считаются с размытием + усиленным Собелем. На маленьком фото поднимай ширину.
-    </p>
+    <div id="textTab" class="hidden">
+      <div class="output-display">
+        <div id="ascii-output"></div>
+      </div>
+    </div>
   </div>
+</div>
 
-  <div id="output" style="display: none;">
-    <pre id="ascii"></pre>
-  </div>
+<div class="toast" id="toast">Скопировано!</div>
 
-  <footer>Один файл · работает прямо в браузере</footer>
+<canvas id="hiddenCanvas" style="display:none;"></canvas>
 
-  <script>
-    const fileInput = document.getElementById("fileInput");
-    const btnLoad = document.getElementById("btnLoad");
-    const modeSelect = document.getElementById("mode");
-    const bgSelect = document.getElementById("bgMode");
-    const widthRange = document.getElementById("width");
-    const threshRange = document.getElementById("thresh");
-    const widthVal = document.getElementById("widthVal");
-    const threshVal = document.getElementById("threshVal");
-    const btnCopy = document.getElementById("btnCopy");
-    const asciiPre = document.getElementById("ascii");
-    const outputBox = document.getElementById("output");
-    const statusEl = document.getElementById("status");
-    const previewRow = document.getElementById("previewRow");
-    const previewImg = document.getElementById("previewImg");
-    const hintEl = document.getElementById("hint");
+<script>
+const $ = (sel) => document.querySelector(sel);
+const uploadZone = $('#uploadZone');
+const fileInput = $('#fileInput');
+const generateBtn = $('#generateBtn');
+const widthRange = $('#widthRange');
+const contrastRange = $('#contrastRange');
+const modeSelect = $('#modeSelect');
+const invertSelect = $('#invertSelect');
+const widthValue = $('#widthValue');
+const contrastValue = $('#contrastValue');
+const outputSection = $('#outputSection');
+const asciiOutput = $('#ascii-output');
+const outputCanvas = $('#outputCanvas');
+const hiddenCanvas = $('#hiddenCanvas');
+const previewContainer = $('#previewContainer');
+const previewImg = $('#previewImg');
+const toast = $('#toast');
+const modeIndicator = $('#modeIndicator');
 
-    let imageData = null;
-    let imgW = 0;
-    let imgH = 0;
+let sourceImage = null;
+let currentText = '';
 
-    const ASCII_CHARS_RICH = "█▓▒░₽#%&*8@0$%=+~-;:.' ";
+// Character sets for different modes
+const CHARSETS = {
+  dots: [' ', '·', '•', '●', '⬤'],
+  full: [' ', '.', ':', '-', '=', '+', '*', '#', '%', '@', '█', '▓', '▒', '░'],
+  blocks: [' ', '░', '▒', '▓', '█'],
+  binary: ['0', '1']
+};
 
-    btnLoad.addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", handleFile);
-    modeSelect.addEventListener("change", () => { updateHint(); process(); });
-    bgSelect.addEventListener("change", () => { applyBg(); process(); });
-    widthRange.addEventListener("input", () => {
-      widthVal.textContent = widthRange.value;
-      process();
-    });
-    threshRange.addEventListener("input", () => {
-      threshVal.textContent = threshRange.value;
-      process();
-    });
-    btnCopy.addEventListener("click", copyText);
+// Upload handling
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('dragover');
+});
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files.length) handleFile(e.target.files[0]);
+});
 
-    function setStatus(msg, type = "") {
-      statusEl.textContent = msg;
-      statusEl.className = "status" + (type ? " " + type : "");
+function handleFile(file) {
+  if (!file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      sourceImage = img;
+      previewImg.src = e.target.result;
+      previewContainer.classList.remove('hidden');
+      generateBtn.disabled = false;
+      uploadZone.innerHTML = `<div class="icon">✅</div><div><strong>${file.name}</strong></div><div style="font-size:0.8rem; color: var(--ink-soft);">${img.width}×${img.height}px</div><input type="file" id="fileInput" accept="image/*">`;
+      document.getElementById('fileInput').addEventListener('change', (e) => {
+        if (e.target.files.length) handleFile(e.target.files[0]);
+      });
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Range sliders
+widthRange.addEventListener('input', () => widthValue.textContent = widthRange.value);
+contrastRange.addEventListener('input', () => contrastValue.textContent = contrastRange.value);
+
+// Tabs
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const tabName = tab.dataset.tab;
+    document.getElementById('visualTab').classList.toggle('hidden', tabName !== 'visual');
+    document.getElementById('textTab').classList.toggle('hidden', tabName !== 'text');
+  });
+});
+
+// Generate
+generateBtn.addEventListener('click', generate);
+
+function generate() {
+  if (!sourceImage) return;
+  
+  const targetWidth = parseInt(widthRange.value);
+  const contrast = parseFloat(contrastRange.value);
+  const invert = invertSelect.value === 'yes';
+  const mode = modeSelect.value;
+  const charset = CHARSETS[mode];
+  
+  // Calculate dimensions (monospace chars are ~2x taller than wide)
+  const aspectRatio = sourceImage.height / sourceImage.width;
+  const targetHeight = Math.round(targetWidth * aspectRatio * 0.5); // 0.5 for char aspect ratio
+  
+  // Draw source image to hidden canvas
+  hiddenCanvas.width = targetWidth;
+  hiddenCanvas.height = targetHeight;
+  const ctx = hiddenCanvas.getContext('2d');
+  ctx.drawImage(sourceImage, 0, 0, targetWidth, targetHeight);
+  
+  const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+  const pixels = imageData.data;
+  
+  let result = '';
+  
+  for (let y = 0; y < targetHeight; y++) {
+    let line = '';
+    for (let x = 0; x < targetWidth; x++) {
+      const idx = (y * targetWidth + x) * 4;
+      const r = pixels[idx];
+      const g = pixels[idx + 1];
+      const b = pixels[idx + 2];
+      
+      // Luminance
+      let lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      
+      // Apply contrast
+      lum = Math.pow(lum, 1 / contrast);
+      
+      if (invert) lum = 1 - lum;
+      
+      // Map to character
+      const charIdx = Math.floor(lum * (charset.length - 1));
+      line += charset[charIdx];
     }
+    result += line + '\n';
+  }
+  
+  currentText = result;
+  asciiOutput.textContent = result;
+  
+  // Render to canvas for image export
+  renderToCanvas(result, charset, mode);
+  
+  // Update UI
+  const modeNames = { dots: 'Точки', full: 'Все символы', blocks: 'Блоки', binary: 'Двоичный' };
+  modeIndicator.textContent = modeNames[mode];
+  outputSection.classList.remove('hidden');
+  outputSection.scrollIntoView({ behavior: 'smooth' });
+}
 
-    function updateHint() {
-      const m = modeSelect.value;
-      if (m === "braille") {
-        hintEl.textContent = "Braille отлично вставляется в Telegram. Ширина 80–140 обычно идеальна.";
-      } else if (m === "contour") {
-        hintEl.textContent = "Контуры с размытием + Собель. Чувствительность ниже → больше линий. На маленьком фото поднимай ширину.";
-      } else {
-        hintEl.textContent = "Символьный ASCII. На маленьком разрешении ставь ширину 120+.";
+function renderToCanvas(text, charset, mode) {
+  const lines = text.split('\n').filter(l => l.length > 0);
+  const cols = lines[0].length;
+  const rows = lines.length;
+  
+  // Determine font size based on resolution for optimal output
+  // For social media: target at least 1200px wide
+  let fontSize = Math.max(4, Math.floor(1200 / cols));
+  if (fontSize > 16) fontSize = 16;
+  
+  const charWidth = Math.ceil(fontSize * 0.6);
+  const charHeight = Math.ceil(fontSize * 1.1);
+  
+  const canvasW = cols * charWidth + 40; // padding
+  const canvasH = rows * charHeight + 40;
+  
+  outputCanvas.width = canvasW;
+  outputCanvas.height = canvasH;
+  const ctx = outputCanvas.getContext('2d');
+  
+  // Background
+  ctx.fillStyle = '#E8E4D6';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+  
+  // Text
+  ctx.fillStyle = '#211D18';
+  ctx.font = `${fontSize}px "IBM Plex Mono", "Courier New", monospace`;
+  ctx.textBaseline = 'top';
+  
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < lines[y].length; x++) {
+      const char = lines[y][x];
+      if (char !== ' ') {
+        ctx.fillText(char, 20 + x * charWidth, 20 + y * charHeight);
       }
     }
+  }
+}
 
-    function applyBg() {
-      const light = bgSelect.value === "light";
-      if (light) {
-        outputBox.style.setProperty("--out-bg", "#F6F3EA");
-        outputBox.style.setProperty("--out-fg", "#211D18");
-        document.documentElement.style.setProperty("--out-bg", "#F6F3EA");
-        document.documentElement.style.setProperty("--out-fg", "#211D18");
-      } else {
-        outputBox.style.setProperty("--out-bg", "#1a1814");
-        outputBox.style.setProperty("--out-fg", "#E8E4D6");
-        document.documentElement.style.setProperty("--out-bg", "#1a1814");
-        document.documentElement.style.setProperty("--out-fg", "#E8E4D6");
-      }
-    }
+// Copy text
+$('#copyTextBtn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(currentText);
+    showToast('Текст скопирован в буфер обмена!');
+  } catch (e) {
+    // Fallback
+    const textarea = document.createElement('textarea');
+    textarea.value = currentText;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    showToast('Текст скопирован!');
+  }
+});
 
-    function handleFile(e) {
-      const file = e.target.files[0];
-      if (!file) return;
+// Copy as image
+$('#copyImageBtn').addEventListener('click', async () => {
+  try {
+    const blob = await new Promise(resolve => outputCanvas.toBlob(resolve, 'image/png'));
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'image/png': blob })
+    ]);
+    showToast('Изображение скопировано! Вставьте в Telegram/TikTok.');
+  } catch (e) {
+    showToast('Не удалось скопировать. Скачайте PNG.');
+  }
+});
 
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        imgW = img.naturalWidth;
-        imgH = img.naturalHeight;
+// Download
+$('#downloadBtn').addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.download = `gravure_${modeSelect.value}_${Date.now()}.png`;
+  link.href = outputCanvas.toDataURL('image/png');
+  link.click();
+  showToast('Файл скачан!');
+});
 
-        const canvas = document.createElement("canvas");
-        canvas.width = imgW;
-        canvas.height = imgH;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(img, 0, 0);
-        imageData = ctx.getImageData(0, 0, imgW, imgH);
-
-        previewImg.src = url;
-        previewRow.style.display = "flex";
-        setStatus("Загружено: " + imgW + "×" + imgH + " px");
-        process();
-      };
-      img.onerror = () => setStatus("Не удалось прочитать изображение", "err");
-      img.src = url;
-    }
-
-    function getGray(x, y, data, w, h) {
-      x = Math.max(0, Math.min(w - 1, Math.floor(x)));
-      y = Math.max(0, Math.min(h - 1, Math.floor(y)));
-      const i = (y * w + x) * 4;
-      return 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-    }
-
-    function sampleGray(srcX, srcY, data, w, h, scaleX, scaleY) {
-      const x0 = Math.max(0, Math.floor(srcX));
-      const y0 = Math.max(0, Math.floor(srcY));
-      const x1 = Math.min(w - 1, Math.ceil(srcX + Math.max(scaleX, 1)));
-      const y1 = Math.min(h - 1, Math.ceil(srcY + Math.max(scaleY, 1)));
-      let sum = 0, count = 0;
-      for (let y = y0; y <= y1; y++) {
-        for (let x = x0; x <= x1; x++) {
-          sum += getGray(x, y, data, w, h);
-          count++;
-        }
-      }
-      return count ? sum / count : 0;
-    }
-
-    function gaussianBlur(src, w, h) {
-      const out = new Float32Array(w * h);
-      const k = [1, 2, 1, 2, 4, 2, 1, 2, 1];
-      const div = 16;
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          let sum = 0;
-          let ki = 0;
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              const sx = Math.max(0, Math.min(w - 1, x + dx));
-              const sy = Math.max(0, Math.min(h - 1, y + dy));
-              sum += src[sy * w + sx] * k[ki++];
-            }
-          }
-          out[y * w + x] = sum / div;
-        }
-      }
-      return out;
-    }
-
-    function sobelMagnitude(src, w, h) {
-      const out = new Float32Array(w * h);
-      for (let y = 1; y < h - 1; y++) {
-        for (let x = 1; x < w - 1; x++) {
-          const gx =
-            -src[(y - 1) * w + (x - 1)] + src[(y - 1) * w + (x + 1)]
-            - 2 * src[y * w + (x - 1)] + 2 * src[y * w + (x + 1)]
-            - src[(y + 1) * w + (x - 1)] + src[(y + 1) * w + (x + 1)];
-          const gy =
-            -src[(y - 1) * w + (x - 1)] - 2 * src[(y - 1) * w + x] - src[(y - 1) * w + (x + 1)]
-            + src[(y + 1) * w + (x - 1)] + 2 * src[(y + 1) * w + x] + src[(y + 1) * w + (x + 1)];
-          out[y * w + x] = Math.sqrt(gx * gx + gy * gy);
-        }
-      }
-      return out;
-    }
-
-    function thinEdges(mag, w, h) {
-      const out = new Float32Array(w * h);
-      for (let y = 1; y < h - 1; y++) {
-        for (let x = 1; x < w - 1; x++) {
-          const v = mag[y * w + x];
-          const n = mag[(y - 1) * w + x];
-          const s = mag[(y + 1) * w + x];
-          const e = mag[y * w + (x + 1)];
-          const ww = mag[y * w + (x - 1)];
-          if (v >= n && v >= s && v >= e && v >= ww) {
-            out[y * w + x] = v;
-          }
-        }
-      }
-      return out;
-    }
-
-    function process() {
-      if (!imageData) return;
-
-      const mode = modeSelect.value;
-      const lightBg = bgSelect.value === "light";
-      const targetW = parseInt(widthRange.value, 10);
-      const thresh = parseInt(threshRange.value, 10);
-
-      let charsW, charsH, aspect;
-      if (mode === "braille") {
-        charsW = targetW;
-        aspect = 0.52;
-        charsH = Math.max(1, Math.round((imgH / imgW) * charsW * aspect));
-      } else {
-        aspect = 0.5;
-        charsW = targetW;
-        charsH = Math.max(1, Math.round((imgH / imgW) * charsW * aspect));
-      }
-
-      const scaleX = imgW / charsW;
-      const scaleY = imgH / charsH;
-
-      const gray = new Float32Array(charsW * charsH);
-      for (let y = 0; y < charsH; y++) {
-        for (let x = 0; x < charsW; x++) {
-          gray[y * charsW + x] = sampleGray(
-            x * scaleX, y * scaleY,
-            imageData.data, imgW, imgH, scaleX, scaleY
-          );
-        }
-      }
-
-      let lines = [];
-
-      if (mode === "contour") {
-        const blurred = gaussianBlur(gray, charsW, charsH);
-        let mag = sobelMagnitude(blurred, charsW, charsH);
-        mag = thinEdges(mag, charsW, charsH);
-
-        const t = thresh * 1.8;
-
-        for (let y = 0; y < charsH; y++) {
-          let line = "";
-          for (let x = 0; x < charsW; x++) {
-            const v = mag[y * charsW + x];
-            const isEdge = v > t;
-            if (isEdge) {
-              line += lightBg ? "•" : "·";
-            } else {
-              line += " ";
-            }
-          }
-          lines.push(line);
-        }
-        asciiPre.classList.remove("braille-mode");
-      } else if (mode === "ascii") {
-        const chars = ASCII_CHARS_RICH;
-        const n = chars.length - 1;
-        for (let y = 0; y < charsH; y++) {
-          let line = "";
-          for (let x = 0; x < charsW; x++) {
-            let val = gray[y * charsW + x];
-            if (lightBg) val = 255 - val;
-            let idx = Math.min(n, Math.max(0, Math.floor((val / 255) * n)));
-            idx = Math.min(n, Math.max(0, idx + Math.floor((thresh - 35) / 12)));
-            line += chars[idx];
-          }
-          lines.push(line);
-        }
-        asciiPre.classList.remove("braille-mode");
-      } else {
-        const bw = charsW;
-        const bh = charsH;
-        const pxW = bw * 2;
-        const pxH = bh * 4;
-        const scaleXb = imgW / pxW;
-        const scaleYb = imgH / pxH;
-
-        const fine = new Float32Array(pxW * pxH);
-        for (let y = 0; y < pxH; y++) {
-          for (let x = 0; x < pxW; x++) {
-            fine[y * pxW + x] = sampleGray(
-              x * scaleXb, y * scaleYb,
-              imageData.data, imgW, imgH, scaleXb, scaleYb
-            );
-          }
-        }
-
-        const threshold = 38 + (thresh - 35) * 1.5;
-
-        const bitMap = [
-          [0x01, 0x08],
-          [0x02, 0x10],
-          [0x04, 0x20],
-          [0x40, 0x80],
-        ];
-
-        for (let by = 0; by < bh; by++) {
-          let line = "";
-          for (let bx = 0; bx < bw; bx++) {
-            let code = 0;
-            for (let dy = 0; dy < 4; dy++) {
-              for (let dx = 0; dx < 2; dx++) {
-                const px = bx * 2 + dx;
-                const py = by * 4 + dy;
-                let val = fine[py * pxW + px];
-                if (lightBg) val = 255 - val;
-                if (val < threshold) code |= bitMap[dy][dx];
-              }
-            }
-            line += String.fromCharCode(0x2800 + code);
-          }
-          lines.push(line);
-        }
-        asciiPre.classList.add("braille-mode");
-      }
-
-      let fontSize;
-      if (mode === "braille") {
-        fontSize = Math.max(9, Math.min(15, Math.round(920 / Math.max(charsW, 1))));
-      } else {
-        fontSize = Math.max(6, Math.min(12, Math.round(780 / Math.max(charsW, 1))));
-      }
-      asciiPre.style.fontSize = fontSize + "px";
-
-      const text = lines.join("\n");
-      asciiPre.textContent = text;
-      outputBox.style.display = "block";
-      btnCopy.disabled = false;
-      setStatus("Готово · " + charsW + "×" + charsH + " · " + fontSize + "px", "ok");
-    }
-
-    async function copyText() {
-      const text = asciiPre.textContent;
-      if (!text) return;
-      try {
-        await navigator.clipboard.writeText(text);
-        setStatus("Скопировано ✓ — можно вставлять в Telegram", "ok");
-        btnCopy.textContent = "Скопировано!";
-        setTimeout(() => { btnCopy.textContent = "Скопировать"; }, 1600);
-      } catch {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-        setStatus("Скопировано (fallback)", "ok");
-      }
-    }
-
-    applyBg();
-    updateHint();
-  </script>
+// Toast
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+</script>
 </body>
 </html>
