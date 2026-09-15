@@ -2,171 +2,181 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ASCII / Контурный генератор</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Гравюра — контуры и ASCII</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@72,400;72,500;72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #0d1117;
-      --panel: #161b22;
-      --border: #30363d;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --accent: #58a6ff;
-      --accent-hover: #79b8ff;
-      --success: #3fb950;
-      --danger: #f85149;
-      --out-bg: #010409;
-      --out-fg: #c9d1d9;
+      --paper: #E8E4D6;
+      --paper-light: #F6F3EA;
+      --ink: #211D18;
+      --ink-soft: #5C5644;
+      --verdigris: #4B6358;
+      --verdigris-dark: #3B4E45;
+      --line: #C9C2AC;
+      --accent: #4B6358;
+      --out-bg: #1a1814;
+      --out-fg: #e8e4d6;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 24px 16px 48px;
+      padding: 28px 16px 56px;
     }
 
     h1 {
-      font-size: 1.55rem;
+      font-family: 'Fraunces', Georgia, serif;
       font-weight: 600;
-      margin-bottom: 6px;
+      font-size: 1.75rem;
       letter-spacing: -0.02em;
+      margin-bottom: 6px;
+      color: var(--ink);
     }
 
     .subtitle {
-      color: var(--muted);
-      font-size: 0.92rem;
-      margin-bottom: 24px;
+      color: var(--ink-soft);
+      font-size: 0.95rem;
+      margin-bottom: 28px;
       text-align: center;
-      max-width: 540px;
-      line-height: 1.45;
+      max-width: 520px;
+      line-height: 1.5;
     }
 
     .panel {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 18px 20px;
+      background: var(--paper-light);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px 22px;
       width: 100%;
-      max-width: 980px;
+      max-width: 960px;
       margin-bottom: 18px;
+      box-shadow: 0 1px 0 rgba(33,29,24,0.04);
     }
 
     .controls {
       display: flex;
       flex-wrap: wrap;
-      gap: 12px 18px;
+      gap: 14px 18px;
       align-items: flex-end;
     }
 
     .control-group {
       display: flex;
       flex-direction: column;
-      gap: 5px;
-      min-width: 120px;
+      gap: 6px;
+      min-width: 130px;
     }
 
     label {
-      font-size: 0.78rem;
-      color: var(--muted);
+      font-size: 0.75rem;
+      color: var(--ink-soft);
       font-weight: 500;
+      letter-spacing: 0.01em;
     }
 
     input[type="file"] { display: none; }
 
     .btn {
-      background: var(--accent);
-      color: #fff;
+      background: var(--verdigris);
+      color: #f6f3ea;
       border: none;
-      border-radius: 8px;
-      padding: 9px 16px;
-      font-size: 0.88rem;
+      border-radius: 9px;
+      padding: 10px 18px;
+      font-size: 0.9rem;
       font-weight: 500;
+      font-family: inherit;
       cursor: pointer;
       transition: background 0.15s, transform 0.1s;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
     }
-    .btn:hover { background: var(--accent-hover); }
+    .btn:hover { background: var(--verdigris-dark); }
     .btn:active { transform: scale(0.97); }
-    .btn.success { background: var(--success); }
-    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn.success { background: var(--ink); }
+    .btn.success:hover { background: #3a342c; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     select, input[type="range"] {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      padding: 7px 10px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--ink);
+      padding: 8px 11px;
       font-size: 0.88rem;
+      font-family: inherit;
     }
-    select { cursor: pointer; min-width: 170px; }
+    select { cursor: pointer; min-width: 175px; }
     input[type="range"] {
-      width: 150px;
+      width: 155px;
       padding: 0;
-      accent-color: var(--accent);
+      accent-color: var(--verdigris);
     }
 
     .value {
       font-size: 0.78rem;
-      color: var(--accent);
+      color: var(--verdigris);
       font-variant-numeric: tabular-nums;
+      font-weight: 500;
     }
 
     .preview-row {
       display: flex;
       gap: 14px;
       flex-wrap: wrap;
-      margin-top: 14px;
+      margin-top: 16px;
     }
 
     .preview-box {
       flex: 1;
       min-width: 180px;
-      background: #010409;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px;
+      background: #1a1814;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
       text-align: center;
     }
 
     .preview-box img {
       max-width: 100%;
-      max-height: 160px;
-      border-radius: 4px;
+      max-height: 170px;
+      border-radius: 5px;
       display: block;
       margin: 0 auto;
     }
 
     .preview-label {
       font-size: 0.72rem;
-      color: var(--muted);
-      margin-bottom: 6px;
+      color: #a89f8a;
+      margin-bottom: 7px;
+      font-weight: 500;
     }
 
     #output {
       width: 100%;
-      max-width: 980px;
+      max-width: 960px;
       background: var(--out-bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
       overflow: auto;
-      max-height: 72vh;
+      max-height: 70vh;
       transition: background 0.2s;
     }
 
     #ascii {
-      font-family: "Courier New", Courier, "Noto Sans Mono", monospace;
+      font-family: 'IBM Plex Mono', 'Courier New', Courier, monospace;
       font-size: 8px;
-      line-height: 1.05;
+      line-height: 1.08;
       white-space: pre;
       color: var(--out-fg);
       margin: 0;
@@ -175,45 +185,46 @@
     }
 
     #ascii.braille-mode {
-      font-size: 11px;
+      font-size: 12px;
       line-height: 1.0;
-      letter-spacing: -0.5px;
+      letter-spacing: -0.4px;
     }
 
     .status {
-      margin-top: 10px;
-      font-size: 0.84rem;
-      color: var(--muted);
+      margin-top: 12px;
+      font-size: 0.85rem;
+      color: var(--ink-soft);
       min-height: 1.2em;
     }
-    .status.ok { color: var(--success); }
-    .status.err { color: var(--danger); }
+    .status.ok { color: var(--verdigris); }
+    .status.err { color: #a33; }
 
     .hint {
-      font-size: 0.78rem;
-      color: var(--muted);
-      margin-top: 8px;
-      line-height: 1.4;
+      font-size: 0.8rem;
+      color: var(--ink-soft);
+      margin-top: 10px;
+      line-height: 1.45;
     }
 
     footer {
-      margin-top: 28px;
-      font-size: 0.78rem;
-      color: var(--muted);
+      margin-top: 32px;
+      font-size: 0.8rem;
+      color: var(--ink-soft);
     }
 
     @media (max-width: 640px) {
       .controls { flex-direction: column; align-items: stretch; }
       .control-group { width: 100%; }
       input[type="range"] { width: 100%; }
+      h1 { font-size: 1.45rem; }
     }
   </style>
 </head>
 <body>
-  <h1>Контур &amp; ASCII генератор</h1>
+  <h1>Гравюра</h1>
   <p class="subtitle">
-    Загрузи фото → выбери режим и фон → копируй.
-    Режим «Braille (Telegram)» специально заточен под вставку в Telegram — рисунок не разъезжается.
+    Загрузи фото → получи контуры точками, ASCII или Braille.
+    Режим Braille лучше всего вставляется в Telegram.
   </p>
 
   <div class="panel">
@@ -237,23 +248,23 @@
         <label>Фон</label>
         <select id="bgMode">
           <option value="dark">Тёмный</option>
-          <option value="light">Светлый</option>
+          <option value="light">Светлый (бумага)</option>
         </select>
       </div>
 
       <div class="control-group">
-        <label>Ширина <span class="value" id="widthVal">120</span></label>
-        <input type="range" id="width" min="50" max="240" value="120" />
+        <label>Ширина <span class="value" id="widthVal">140</span></label>
+        <input type="range" id="width" min="60" max="260" value="140" />
       </div>
 
       <div class="control-group">
-        <label>Порог / плотность <span class="value" id="threshVal">40</span></label>
-        <input type="range" id="thresh" min="5" max="110" value="40" />
+        <label>Чувствительность <span class="value" id="threshVal">35</span></label>
+        <input type="range" id="thresh" min="8" max="90" value="35" />
       </div>
 
       <div class="control-group" style="margin-left: auto;">
         <label>&nbsp;</label>
-        <button class="btn success" id="btnCopy" type="button" disabled>Скопировать текст</button>
+        <button class="btn success" id="btnCopy" type="button" disabled>Скопировать</button>
       </div>
     </div>
 
@@ -266,7 +277,7 @@
 
     <div class="status" id="status"></div>
     <p class="hint" id="hint">
-      Совет: для Telegram бери режим Braille и ширину 80–140. На маленьком фото ставь ширину повыше — будет чётче.
+      Контуры теперь считаются с размытием + усиленным Собелем. На маленьком фото поднимай ширину.
     </p>
   </div>
 
@@ -274,7 +285,7 @@
     <pre id="ascii"></pre>
   </div>
 
-  <footer>Один файл · открывай прямо в браузере</footer>
+  <footer>Один файл · работает прямо в браузере</footer>
 
   <script>
     const fileInput = document.getElementById("fileInput");
@@ -321,26 +332,26 @@
     function updateHint() {
       const m = modeSelect.value;
       if (m === "braille") {
-        hintEl.textContent = "Braille отлично вставляется в Telegram и Discord. Ширина 70–130 обычно идеальна. Фон можно оставить тёмным.";
+        hintEl.textContent = "Braille отлично вставляется в Telegram. Ширина 80–140 обычно идеальна.";
       } else if (m === "contour") {
-        hintEl.textContent = "Контуры точками. Чем выше порог — тем меньше точек. На маленьком фото увеличь ширину.";
+        hintEl.textContent = "Контуры с размытием + Собель. Чувствительность ниже → больше линий. На маленьком фото поднимай ширину.";
       } else {
-        hintEl.textContent = "Символьный ASCII. На маленьком разрешении ставь ширину 100+ — будет меньше каши.";
+        hintEl.textContent = "Символьный ASCII. На маленьком разрешении ставь ширину 120+.";
       }
     }
 
     function applyBg() {
       const light = bgSelect.value === "light";
       if (light) {
-        outputBox.style.setProperty("--out-bg", "#f0f2f5");
-        outputBox.style.setProperty("--out-fg", "#1a1a1a");
-        document.documentElement.style.setProperty("--out-bg", "#f0f2f5");
-        document.documentElement.style.setProperty("--out-fg", "#1a1a1a");
+        outputBox.style.setProperty("--out-bg", "#F6F3EA");
+        outputBox.style.setProperty("--out-fg", "#211D18");
+        document.documentElement.style.setProperty("--out-bg", "#F6F3EA");
+        document.documentElement.style.setProperty("--out-fg", "#211D18");
       } else {
-        outputBox.style.setProperty("--out-bg", "#010409");
-        outputBox.style.setProperty("--out-fg", "#c9d1d9");
-        document.documentElement.style.setProperty("--out-bg", "#010409");
-        document.documentElement.style.setProperty("--out-fg", "#c9d1d9");
+        outputBox.style.setProperty("--out-bg", "#1a1814");
+        outputBox.style.setProperty("--out-fg", "#E8E4D6");
+        document.documentElement.style.setProperty("--out-bg", "#1a1814");
+        document.documentElement.style.setProperty("--out-fg", "#E8E4D6");
       }
     }
 
@@ -370,27 +381,81 @@
       img.src = url;
     }
 
-    function getGray(x, y, data, w) {
-      const i = (Math.floor(y) * w + Math.floor(x)) * 4;
+    function getGray(x, y, data, w, h) {
+      x = Math.max(0, Math.min(w - 1, Math.floor(x)));
+      y = Math.max(0, Math.min(h - 1, Math.floor(y)));
+      const i = (y * w + x) * 4;
       return 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
     }
 
-    // Area-average sampling — меньше каши
     function sampleGray(srcX, srcY, data, w, h, scaleX, scaleY) {
       const x0 = Math.max(0, Math.floor(srcX));
       const y0 = Math.max(0, Math.floor(srcY));
-      const x1 = Math.min(w - 1, Math.ceil(srcX + scaleX));
-      const y1 = Math.min(h - 1, Math.ceil(srcY + scaleY));
-
-      let sum = 0;
-      let count = 0;
+      const x1 = Math.min(w - 1, Math.ceil(srcX + Math.max(scaleX, 1)));
+      const y1 = Math.min(h - 1, Math.ceil(srcY + Math.max(scaleY, 1)));
+      let sum = 0, count = 0;
       for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) {
-          sum += getGray(x, y, data, w);
+          sum += getGray(x, y, data, w, h);
           count++;
         }
       }
       return count ? sum / count : 0;
+    }
+
+    function gaussianBlur(src, w, h) {
+      const out = new Float32Array(w * h);
+      const k = [1, 2, 1, 2, 4, 2, 1, 2, 1];
+      const div = 16;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let sum = 0;
+          let ki = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const sx = Math.max(0, Math.min(w - 1, x + dx));
+              const sy = Math.max(0, Math.min(h - 1, y + dy));
+              sum += src[sy * w + sx] * k[ki++];
+            }
+          }
+          out[y * w + x] = sum / div;
+        }
+      }
+      return out;
+    }
+
+    function sobelMagnitude(src, w, h) {
+      const out = new Float32Array(w * h);
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          const gx =
+            -src[(y - 1) * w + (x - 1)] + src[(y - 1) * w + (x + 1)]
+            - 2 * src[y * w + (x - 1)] + 2 * src[y * w + (x + 1)]
+            - src[(y + 1) * w + (x - 1)] + src[(y + 1) * w + (x + 1)];
+          const gy =
+            -src[(y - 1) * w + (x - 1)] - 2 * src[(y - 1) * w + x] - src[(y - 1) * w + (x + 1)]
+            + src[(y + 1) * w + (x - 1)] + 2 * src[(y + 1) * w + x] + src[(y + 1) * w + (x + 1)];
+          out[y * w + x] = Math.sqrt(gx * gx + gy * gy);
+        }
+      }
+      return out;
+    }
+
+    function thinEdges(mag, w, h) {
+      const out = new Float32Array(w * h);
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          const v = mag[y * w + x];
+          const n = mag[(y - 1) * w + x];
+          const s = mag[(y + 1) * w + x];
+          const e = mag[y * w + (x + 1)];
+          const ww = mag[y * w + (x - 1)];
+          if (v >= n && v >= s && v >= e && v >= ww) {
+            out[y * w + x] = v;
+          }
+        }
+      }
+      return out;
     }
 
     function process() {
@@ -404,10 +469,10 @@
       let charsW, charsH, aspect;
       if (mode === "braille") {
         charsW = targetW;
-        aspect = 0.5;
+        aspect = 0.52;
         charsH = Math.max(1, Math.round((imgH / imgW) * charsW * aspect));
       } else {
-        aspect = 0.48;
+        aspect = 0.5;
         charsW = targetW;
         charsH = Math.max(1, Math.round((imgH / imgW) * charsW * aspect));
       }
@@ -418,32 +483,32 @@
       const gray = new Float32Array(charsW * charsH);
       for (let y = 0; y < charsH; y++) {
         for (let x = 0; x < charsW; x++) {
-          const sx = x * scaleX;
-          const sy = y * scaleY;
-          gray[y * charsW + x] = sampleGray(sx, sy, imageData.data, imgW, imgH, scaleX, scaleY);
+          gray[y * charsW + x] = sampleGray(
+            x * scaleX, y * scaleY,
+            imageData.data, imgW, imgH, scaleX, scaleY
+          );
         }
       }
 
       let lines = [];
 
       if (mode === "contour") {
+        const blurred = gaussianBlur(gray, charsW, charsH);
+        let mag = sobelMagnitude(blurred, charsW, charsH);
+        mag = thinEdges(mag, charsW, charsH);
+
+        const t = thresh * 1.8;
+
         for (let y = 0; y < charsH; y++) {
           let line = "";
           for (let x = 0; x < charsW; x++) {
-            if (y === 0 || y === charsH - 1 || x === 0 || x === charsW - 1) {
+            const v = mag[y * charsW + x];
+            const isEdge = v > t;
+            if (isEdge) {
+              line += lightBg ? "•" : "·";
+            } else {
               line += " ";
-              continue;
             }
-            const gx =
-              -gray[(y - 1) * charsW + (x - 1)] + gray[(y - 1) * charsW + (x + 1)]
-              - 2 * gray[y * charsW + (x - 1)] + 2 * gray[y * charsW + (x + 1)]
-              - gray[(y + 1) * charsW + (x - 1)] + gray[(y + 1) * charsW + (x + 1)];
-            const gy =
-              -gray[(y - 1) * charsW + (x - 1)] - 2 * gray[(y - 1) * charsW + x] - gray[(y - 1) * charsW + (x + 1)]
-              + gray[(y + 1) * charsW + (x - 1)] + 2 * gray[(y + 1) * charsW + x] + gray[(y + 1) * charsW + (x + 1)];
-            const mag = Math.sqrt(gx * gx + gy * gy);
-            const isEdge = mag > thresh * 2.6;
-            line += isEdge ? (lightBg ? "•" : ".") : " ";
           }
           lines.push(line);
         }
@@ -457,14 +522,13 @@
             let val = gray[y * charsW + x];
             if (lightBg) val = 255 - val;
             let idx = Math.min(n, Math.max(0, Math.floor((val / 255) * n)));
-            idx = Math.min(n, Math.max(0, idx + Math.floor((thresh - 40) / 14)));
+            idx = Math.min(n, Math.max(0, idx + Math.floor((thresh - 35) / 12)));
             line += chars[idx];
           }
           lines.push(line);
         }
         asciiPre.classList.remove("braille-mode");
       } else {
-        // Braille mode
         const bw = charsW;
         const bh = charsH;
         const pxW = bw * 2;
@@ -482,7 +546,7 @@
           }
         }
 
-        const threshold = 40 + (thresh - 40) * 1.4;
+        const threshold = 38 + (thresh - 35) * 1.5;
 
         const bitMap = [
           [0x01, 0x08],
@@ -501,9 +565,7 @@
                 const py = by * 4 + dy;
                 let val = fine[py * pxW + px];
                 if (lightBg) val = 255 - val;
-                if (val < threshold) {
-                  code |= bitMap[dy][dx];
-                }
+                if (val < threshold) code |= bitMap[dy][dx];
               }
             }
             line += String.fromCharCode(0x2800 + code);
@@ -515,9 +577,9 @@
 
       let fontSize;
       if (mode === "braille") {
-        fontSize = Math.max(9, Math.min(14, Math.round(900 / Math.max(charsW, 1))));
+        fontSize = Math.max(9, Math.min(15, Math.round(920 / Math.max(charsW, 1))));
       } else {
-        fontSize = Math.max(6, Math.min(11, Math.round(720 / Math.max(charsW, 1))));
+        fontSize = Math.max(6, Math.min(12, Math.round(780 / Math.max(charsW, 1))));
       }
       asciiPre.style.fontSize = fontSize + "px";
 
@@ -525,7 +587,7 @@
       asciiPre.textContent = text;
       outputBox.style.display = "block";
       btnCopy.disabled = false;
-      setStatus("Готово · " + charsW + "×" + charsH + " · шрифт " + fontSize + "px", "ok");
+      setStatus("Готово · " + charsW + "×" + charsH + " · " + fontSize + "px", "ok");
     }
 
     async function copyText() {
@@ -533,9 +595,9 @@
       if (!text) return;
       try {
         await navigator.clipboard.writeText(text);
-        setStatus("Скопировано ✓  — теперь можно вставлять в Telegram", "ok");
+        setStatus("Скопировано ✓ — можно вставлять в Telegram", "ok");
         btnCopy.textContent = "Скопировано!";
-        setTimeout(() => { btnCopy.textContent = "Скопировать текст"; }, 1600);
+        setTimeout(() => { btnCopy.textContent = "Скопировать"; }, 1600);
       } catch {
         const ta = document.createElement("textarea");
         ta.value = text;
