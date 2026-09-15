@@ -1,227 +1,472 @@
-import math
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASCII / Контурный генератор</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --success: #3fb950;
+      --danger: #f85149;
+    }
 
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-class ImageToAsciiApp:
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 48px;
+    }
 
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Контур и ASCII Генератор")
-        self.root.geometry("900x700")
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      letter-spacing: -0.02em;
+    }
 
-        self.img_pixels = None
-        self.img_width = 0
-        self.img_height = 0
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 28px;
+      text-align: center;
+      max-width: 520px;
+    }
 
-        self.setup_ui()
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+      max-width: 960px;
+      margin-bottom: 20px;
+    }
 
-    def setup_ui(self):
-        # Верхняя панель управления
-        control_frame = ttk.Frame(self.root, padding=10)
-        control_frame.pack(fill=tk.X)
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px 20px;
+      align-items: center;
+    }
 
-        btn_load = ttk.Button(
-            control_frame, text="Загрузить фото", command=self.load_image
-        )
-        btn_load.pack(side=tk.LEFT, padx=5)
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 140px;
+    }
 
-        ttk.Label(control_frame, text="Режим:").pack(
-            side=tk.LEFT, padx=(15, 2)
-        )
-        self.mode_var = tk.StringVar(value="contour")
-        mode_cb = ttk.Combobox(
-            control_frame,
-            textvariable=self.mode_var,
-            values=["Контур точками", "ASCII из символов"],
-            state="readonly",
-            width=18,
-        )
-        mode_cb.current(0)
-        mode_cb.pack(side=tk.LEFT, padx=5)
-        mode_cb.bind("<<ComboboxSelected>>", lambda e: self.process_image())
+    label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
 
-        ttk.Label(control_frame, text="Ширина текста:").pack(
-            side=tk.LEFT, padx=(15, 2)
-        )
-        self.width_scale = ttk.Scale(
-            control_frame,
-            from_=40,
-            to=200,
-            value=100,
-            command=lambda e: self.process_image(),
-        )
-        self.width_scale.pack(side=tk.LEFT, padx=5)
+    input[type="file"] {
+      display: none;
+    }
 
-        ttk.Label(control_frame, text="Порог/Чувствительность:").pack(
-            side=tk.LEFT, padx=(15, 2)
-        )
-        self.thresh_scale = ttk.Scale(
-            control_frame,
-            from_=10,
-            to=150,
-            value=50,
-            command=lambda e: self.process_image(),
-        )
-        self.thresh_scale.pack(side=tk.LEFT, padx=5)
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
 
-        btn_copy = ttk.Button(
-            control_frame, text="Скопировать текст", command=self.copy_to_clipboard
-        )
-        btn_copy.pack(side=tk.RIGHT, padx=5)
+    .btn:hover {
+      background: var(--accent-hover);
+    }
 
-        # Область вывода текста
-        text_frame = ttk.Frame(self.root, padding=10)
-        text_frame.pack(fill=tk.BOTH, expand=True)
+    .btn:active {
+      transform: scale(0.97);
+    }
 
-        self.text_area = tk.Text(
-            text_frame,
-            font=("Courier", 6),
-            wrap=tk.NONE,
-            bg="black",
-            fg="white",
-        )
-        scrollbar_y = ttk.Scrollbar(
-            text_frame, orient=tk.VERTICAL, command=self.text_area.yview
-        )
-        scrollbar_x = ttk.Scrollbar(
-            text_frame, orient=tk.HORIZONTAL, command=self.text_area.xview
-        )
+    .btn.secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
 
-        self.text_area.configure(
-            yscrollcommand=scrollbar_y.set, xscrollcommand=scrollbar_x.set
-        )
+    .btn.secondary:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
 
-        scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
-        scrollbar_x.pack(side=tk.BOTTOM, fill=tk.X)
-        self.text_area.pack(fill=tk.BOTH, expand=True)
+    .btn.success {
+      background: var(--success);
+    }
 
-    def load_image(self):
-        file_path = filedialog.askopenfilename(
-            filetypes=[
-                ("Изображения", "*.png *.gif *.ppm"),
-                ("Все файлы", "*.*"),
-            ]
-        )
-        if not file_path:
-            return
+    select, input[type="range"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 0.9rem;
+    }
 
-        try:
-            # Используем встроенный PhotoImage (поддерживает PNG, GIF, PPM)
-            img = tk.PhotoImage(file="file_path")
-            self.img_width = img.width()
-            self.img_height = img.height()
+    select {
+      cursor: pointer;
+      min-width: 180px;
+    }
 
-            # Считываем RGB пиксели
-            self.img_pixels = []
-            for y in range(self.img_height):
-                row = []
-                for x in range(self.img_width):
-                    r, g, b = img.get(x, y)
-                    # Перевод в отрезки яркости (Grayscale)
-                    gray = int(0.299 * r + 0.587 * g + 0.114 * b)
-                    row.append(gray)
-                self.img_pixels.append(row)
+    input[type="range"] {
+      width: 160px;
+      padding: 0;
+      accent-color: var(--accent);
+    }
 
-            self.process_image()
-        except Exception as e:
-            messagebox.showerror(
-                "Ошибка", f"Не удалось загрузить изображение: {e}"
-            )
+    .value {
+      font-size: 0.8rem;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
 
-    def process_image(self):
-        if not self.img_pixels:
-            return
+    .preview-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
 
-        target_width = int(self.width_scale.get())
-        # Символы в моноширинном шрифте обычно выше, чем шире (аспект около 0.55)
-        aspect_ratio = 0.55
-        target_height = int(
-            (self.img_height / self.img_width) * target_width * aspect_ratio
-        )
+    .preview-box {
+      flex: 1;
+      min-width: 200px;
+      background: #010409;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
 
-        if target_height <= 0 or target_width <= 0:
-            return
+    .preview-box img, .preview-box canvas {
+      max-width: 100%;
+      max-height: 180px;
+      border-radius: 4px;
+      display: block;
+      margin: 0 auto;
+    }
 
-        # Масштабирование изображения методом ближайшего соседа
-        resized = []
-        for y in range(target_height):
-            row = []
-            orig_y = int(y * self.img_height / target_height)
-            for x in range(target_width):
-                orig_x = int(x * self.img_width / target_width)
-                row.append(self.img_pixels[orig_y][orig_x])
-            resized.append(row)
+    .preview-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
 
-        mode = self.mode_var.get()
-        threshold = self.thresh_scale.get()
-        result_lines = []
+    #output {
+      width: 100%;
+      max-width: 960px;
+      background: #010409;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      overflow: auto;
+      max-height: 70vh;
+    }
 
-        if mode == "Контур точками":
-            # Вычисление границ с использованием оператора Собеля
-            for y in range(target_height):
-                line = []
-                for x in range(target_width):
-                    if (
-                        y == 0
-                        or y == target_height - 1
-                        or x == 0
-                        or x == target_width - 1
-                    ):
-                        line.append(" ")
-                        continue
+    #ascii {
+      font-family: "Courier New", Courier, monospace;
+      font-size: 7px;
+      line-height: 1.05;
+      white-space: pre;
+      color: #c9d1d9;
+      margin: 0;
+      letter-spacing: 0;
+    }
 
-                    # Градиенты по X и Y
-                    gx = (
-                        -resized[y - 1][x - 1]
-                        + resized[y - 1][x + 1]
-                        - 2 * resized[y][x - 1]
-                        + 2 * resized[y][x + 1]
-                        - resized[y + 1][x - 1]
-                        + resized[y + 1][x + 1]
-                    )
-                    gy = (
-                        -resized[y - 1][x - 1]
-                        - 2 * resized[y - 1][x]
-                        - resized[y - 1][x + 1]
-                        + resized[y + 1][x - 1]
-                        + 2 * resized[y + 1][x]
-                        + resized[y + 1][x + 1]
-                    )
+    .status {
+      margin-top: 12px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      min-height: 1.2em;
+    }
 
-                    magnitude = math.sqrt(gx * gx + gy * gy)
-                    if magnitude > threshold * 3:
-                        line.append(".")
-                    else:
-                        line.append(" ")
-                result_lines.append("".join(line))
+    .status.ok {
+      color: var(--success);
+    }
 
-        else:
-            # Набор символов от темных к светлым
-            chars = "@%#*+=-:. "
-            num_chars = len(chars)
+    .status.err {
+      color: var(--danger);
+    }
 
-            for y in range(target_height):
-                line = []
-                for x in range(target_width):
-                    val = resized[y][x]
-                    char_idx = int((val / 255) * (num_chars - 1))
-                    line.append(chars[char_idx])
-                result_lines.append("".join(line))
+    footer {
+      margin-top: 32px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
 
-        output_text = "\n".join(result_lines)
-        self.text_area.delete("1.0", tk.END)
-        self.text_area.insert("1.0", output_text)
+    @media (max-width: 600px) {
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .control-group {
+        width: 100%;
+      }
+      input[type="range"] {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Контур &amp; ASCII генератор</h1>
+  <p class="subtitle">
+    Загрузи фото → выбери режим → получи текст, который можно скопировать.
+    Контуры рисуются точками, второй режим — плотный ASCII из всяких символов.
+  </p>
 
-    def copy_to_clipboard(self):
-        text = self.text_area.get("1.0", tk.END)
-        if text.strip():
-            self.root.clipboard_clear()
-            self.root.clipboard_append(text)
-            messagebox.showinfo("Успех", "Текст скопирован в буфер обмена!")
+  <div class="panel">
+    <div class="controls">
+      <div class="control-group">
+        <label>Изображение</label>
+        <button class="btn" id="btnLoad" type="button">Загрузить фото</button>
+        <input type="file" id="fileInput" accept="image/*" />
+      </div>
 
+      <div class="control-group">
+        <label>Режим</label>
+        <select id="mode">
+          <option value="contour">Контуры точками</option>
+          <option value="ascii">Символьный ASCII</option>
+        </select>
+      </div>
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = ImageToAsciiApp(root)
-    root.mainloop()
+      <div class="control-group">
+        <label>Ширина (символов) <span class="value" id="widthVal">100</span></label>
+        <input type="range" id="width" min="40" max="220" value="100" />
+      </div>
+
+      <div class="control-group">
+        <label>Порог / плотность <span class="value" id="threshVal">45</span></label>
+        <input type="range" id="thresh" min="5" max="120" value="45" />
+      </div>
+
+      <div class="control-group" style="margin-left: auto;">
+        <label>&nbsp;</label>
+        <button class="btn success" id="btnCopy" type="button" disabled>Скопировать текст</button>
+      </div>
+    </div>
+
+    <div class="preview-row" id="previewRow" style="display: none;">
+      <div class="preview-box">
+        <div class="preview-label">Оригинал</div>
+        <img id="previewImg" alt="preview" />
+      </div>
+    </div>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <div id="output" style="display: none;">
+    <pre id="ascii"></pre>
+  </div>
+
+  <footer>Просто открой index.html в браузере — ничего ставить не надо.</footer>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const btnLoad = document.getElementById("btnLoad");
+    const modeSelect = document.getElementById("mode");
+    const widthRange = document.getElementById("width");
+    const threshRange = document.getElementById("thresh");
+    const widthVal = document.getElementById("widthVal");
+    const threshVal = document.getElementById("threshVal");
+    const btnCopy = document.getElementById("btnCopy");
+    const asciiPre = document.getElementById("ascii");
+    const outputBox = document.getElementById("output");
+    const statusEl = document.getElementById("status");
+    const previewRow = document.getElementById("previewRow");
+    const previewImg = document.getElementById("previewImg");
+
+    let imageData = null; // ImageData after load
+    let imgW = 0;
+    let imgH = 0;
+
+    // Набор символов от тёмного к светлому (включая всякие спецсимволы)
+    const ASCII_CHARS = "█▓▒░@%#*+=-:. ";
+    // Более "грязный" вариант, ближе к тому, что ты просил
+    const ASCII_CHARS_RICH = "█▓▒░₽#%&*8@0$%=+~-;:.' ";
+
+    btnLoad.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", handleFile);
+    modeSelect.addEventListener("change", process);
+    widthRange.addEventListener("input", () => {
+      widthVal.textContent = widthRange.value;
+      process();
+    });
+    threshRange.addEventListener("input", () => {
+      threshVal.textContent = threshRange.value;
+      process();
+    });
+    btnCopy.addEventListener("click", copyText);
+
+    function setStatus(msg, type = "") {
+      statusEl.textContent = msg;
+      statusEl.className = "status" + (type ? " " + type : "");
+    }
+
+    function handleFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        imgW = img.naturalWidth;
+        imgH = img.naturalHeight;
+
+        // Рисуем на временный canvas, чтобы получить пиксели
+        const canvas = document.createElement("canvas");
+        canvas.width = imgW;
+        canvas.height = imgH;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0);
+        imageData = ctx.getImageData(0, 0, imgW, imgH);
+
+        previewImg.src = url;
+        previewRow.style.display = "flex";
+        setStatus(`Загружено: ${imgW}×${imgH} px`);
+        process();
+      };
+      img.onerror = () => {
+        setStatus("Не удалось прочитать изображение", "err");
+      };
+      img.src = url;
+    }
+
+    function getGray(x, y, data, w) {
+      const i = (y * w + x) * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      return 0.299 * r + 0.587 * g + 0.114 * b;
+    }
+
+    function process() {
+      if (!imageData) return;
+
+      const targetW = parseInt(widthRange.value, 10);
+      // Символы выше, чем шире → уменьшаем высоту
+      const aspect = 0.48;
+      const targetH = Math.max(1, Math.round((imgH / imgW) * targetW * aspect));
+      const thresh = parseInt(threshRange.value, 10);
+      const mode = modeSelect.value;
+
+      // Масштабируем ближайшим соседом в grayscale
+      const resized = new Float32Array(targetW * targetH);
+      for (let y = 0; y < targetH; y++) {
+        const srcY = Math.min(imgH - 1, Math.floor((y / targetH) * imgH));
+        for (let x = 0; x < targetW; x++) {
+          const srcX = Math.min(imgW - 1, Math.floor((x / targetW) * imgW));
+          resized[y * targetW + x] = getGray(srcX, srcY, imageData.data, imgW);
+        }
+      }
+
+      let lines = [];
+
+      if (mode === "contour") {
+        // Sobel-подобный детектор краёв
+        for (let y = 0; y < targetH; y++) {
+          let line = "";
+          for (let x = 0; x < targetW; x++) {
+            if (y === 0 || y === targetH - 1 || x === 0 || x === targetW - 1) {
+              line += " ";
+              continue;
+            }
+            const gx =
+              -resized[(y - 1) * targetW + (x - 1)] +
+              resized[(y - 1) * targetW + (x + 1)] -
+              2 * resized[y * targetW + (x - 1)] +
+              2 * resized[y * targetW + (x + 1)] -
+              resized[(y + 1) * targetW + (x - 1)] +
+              resized[(y + 1) * targetW + (x + 1)];
+
+            const gy =
+              -resized[(y - 1) * targetW + (x - 1)] -
+              2 * resized[(y - 1) * targetW + x] -
+              resized[(y - 1) * targetW + (x + 1)] +
+              resized[(y + 1) * targetW + (x - 1)] +
+              2 * resized[(y + 1) * targetW + x] +
+              resized[(y + 1) * targetW + (x + 1)];
+
+            const mag = Math.sqrt(gx * gx + gy * gy);
+            // Порог умножаем, чтобы слайдер был удобнее
+            line += mag > thresh * 2.8 ? "." : " ";
+          }
+          lines.push(line);
+        }
+      } else {
+        // Плотный ASCII
+        const chars = ASCII_CHARS_RICH;
+        const n = chars.length - 1;
+        for (let y = 0; y < targetH; y++) {
+          let line = "";
+          for (let x = 0; x < targetW; x++) {
+            const val = resized[y * targetW + x];
+            // Инвертируем: тёмные пиксели → тёмные символы
+            const idx = Math.min(n, Math.max(0, Math.floor((val / 255) * n)));
+            // Можно подкрутить плотность через thresh (сдвиг яркости)
+            const shifted = Math.min(n, Math.max(0, idx + Math.floor((thresh - 45) / 12)));
+            line += chars[shifted];
+          }
+          lines.push(line);
+        }
+      }
+
+      const text = lines.join("\n");
+      asciiPre.textContent = text;
+      outputBox.style.display = "block";
+      btnCopy.disabled = false;
+      setStatus(`Готово · ${targetW}×${targetH} символов`, "ok");
+    }
+
+    async function copyText() {
+      const text = asciiPre.textContent;
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus("Скопировано в буфер обмена ✓", "ok");
+        btnCopy.textContent = "Скопировано!";
+        setTimeout(() => {
+          btnCopy.textContent = "Скопировать текст";
+        }, 1500);
+      } catch (err) {
+        // Fallback
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        setStatus("Скопировано (fallback)", "ok");
+      }
+    }
+  </script>
+</body>
+</html>
