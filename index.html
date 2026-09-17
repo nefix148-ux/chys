@@ -50,37 +50,9 @@
             pointer-events: none;
             z-index: 10;
         }
-        /* Виртуальный джойстик */
-        #joystick-zone {
-            position: absolute;
-            bottom: 30px;
-            left: 20px;
-            width: 120px;
-            height: 120px;
-            z-index: 20;
-            pointer-events: auto;
-        }
-        #joystick-base {
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.08);
-            border: 2px solid rgba(255,140,0,0.3);
-            position: relative;
-        }
-        #joystick-knob {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: rgba(255,140,0,0.7);
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            box-shadow: 0 0 15px rgba(255,140,0,0.5);
-        }
         #regen-btn {
             position: absolute;
-            bottom: 40px;
+            bottom: 30px;
             right: 20px;
             z-index: 20;
             background: rgba(255,140,0,0.2);
@@ -95,12 +67,7 @@
         #regen-btn:active {
             background: rgba(255,140,0,0.4);
         }
-        @media (min-width: 700px) {
-            #joystick-zone { display: none; }
-            #controls-hint { display: block; }
-        }
         @media (max-width: 699px) {
-            #controls-hint { display: none; }
             h1 { font-size: 1rem; }
             .info { font-size: 0.7rem; }
         }
@@ -110,23 +77,17 @@
     <div id="ui">
         <h1>🚀 Космический набросок</h1>
         <div class="info">
-            Свайп — двигай камеру · Корабль сам летит к центру экрана<br>
-            Джойстик / WASD — управление
+            Свайп — двигай камеру · Корабль сам летит к центру<br>
+            WASD / стрелки — ручное управление · Корабль летает над всем
         </div>
     </div>
 
     <canvas id="game"></canvas>
 
-    <div id="joystick-zone">
-        <div id="joystick-base">
-            <div id="joystick-knob"></div>
-        </div>
-    </div>
-
     <button id="regen-btn">🔄 Новая карта</button>
 
     <div id="controls-hint">
-        WASD / стрелки — летать · Пробел — новая карта · ЛКМ + drag — камера
+        WASD / стрелки — летать · Пробел — новая карта · ЛКМ + drag / свайп — камера
     </div>
 
 <script>
@@ -198,27 +159,24 @@ const ship = {
     angle: -Math.PI / 2,
     vx: 0,
     vy: 0,
-    maxSpeed: 3.8,
-    accel: 0.22,
-    friction: 0.94,
-    turnSpeed: 0.09,
+    maxSpeed: 4.2,
+    accel: 0.25,
+    friction: 0.93,
     size: 13,
     // Сила притяжения к центру экрана
-    homeForce: 0.045
+    homeForce: 0.05
 };
 
 // === КАМЕРА (свободная) ===
 const camera = {
     x: 0,
     y: 0,
-    // для плавности
     targetX: 0,
     targetY: 0
 };
 
 // === ВВОД ===
 const keys = {};
-const joystick = { active: false, dx: 0, dy: 0 };
 
 // Клавиатура
 window.addEventListener('keydown', e => {
@@ -254,7 +212,7 @@ window.addEventListener('mousemove', e => {
     }
 });
 
-// Touch для камеры (свайп по экрану, кроме джойстика)
+// Touch для камеры
 canvas.addEventListener('touchstart', e => {
     if (e.touches.length === 1) {
         isDraggingCamera = true;
@@ -278,64 +236,6 @@ canvas.addEventListener('touchmove', e => {
 canvas.addEventListener('touchend', () => isDraggingCamera = false);
 canvas.addEventListener('touchcancel', () => isDraggingCamera = false);
 
-// Виртуальный джойстик
-const joyZone = document.getElementById('joystick-zone');
-const joyKnob = document.getElementById('joystick-knob');
-const joyBase = document.getElementById('joystick-base');
-
-function handleJoyStart(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    joystick.active = true;
-    updateJoy(e);
-}
-function handleJoyMove(e) {
-    if (!joystick.active) return;
-    e.preventDefault();
-    e.stopPropagation();
-    updateJoy(e);
-}
-function handleJoyEnd(e) {
-    joystick.active = false;
-    joystick.dx = 0;
-    joystick.dy = 0;
-    joyKnob.style.transform = 'translate(-50%, -50%)';
-}
-
-function updateJoy(e) {
-    const rect = joyBase.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    let clientX, clientY;
-    if (e.touches && e.touches[0]) {
-        clientX = e.touches[0].clientX;
-        clientY = e.touches[0].clientY;
-    } else {
-        clientX = e.clientX;
-        clientY = e.clientY;
-    }
-    let dx = clientX - cx;
-    let dy = clientY - cy;
-    const maxDist = rect.width / 2 - 10;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist > maxDist) {
-        dx = dx / dist * maxDist;
-        dy = dy / dist * maxDist;
-    }
-    joystick.dx = dx / maxDist;
-    joystick.dy = dy / maxDist;
-    joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-}
-
-joyZone.addEventListener('touchstart', handleJoyStart, { passive: false });
-joyZone.addEventListener('touchmove', handleJoyMove, { passive: false });
-joyZone.addEventListener('touchend', handleJoyEnd);
-joyZone.addEventListener('touchcancel', handleJoyEnd);
-// Мышь тоже для теста
-joyZone.addEventListener('mousedown', handleJoyStart);
-window.addEventListener('mousemove', e => { if (joystick.active) updateJoy(e); });
-window.addEventListener('mouseup', handleJoyEnd);
-
 // Кнопка регена
 document.getElementById('regen-btn').addEventListener('click', () => {
     generateMap();
@@ -352,13 +252,12 @@ function spawnShip() {
     for (let i = 0; i < 200; i++) {
         const tx = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*28);
         const ty = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*28);
-        if (map[ty] && map[ty][tx] !== BLOCK.WALL && map[ty][tx] !== BLOCK.WATER) {
+        if (map[ty] && map[ty][tx] !== undefined) {
             ship.x = tx + 0.5;
             ship.y = ty + 0.5;
             ship.vx = 0;
             ship.vy = 0;
             ship.angle = -Math.PI/2;
-            // Центрируем камеру на корабле
             camera.x = ship.x * TILE - VIEW_W / 2;
             camera.y = ship.y * TILE - VIEW_H / 2;
             camera.targetX = camera.x;
@@ -372,39 +271,38 @@ function spawnShip() {
 
 // === ФИЗИКА ===
 function update(dt) {
-    // === Управление кораблём ===
+    // === Ручное управление (WASD) ===
     let inputX = 0, inputY = 0;
 
-    // Клавиатура
     if (keys['KeyA'] || keys['ArrowLeft'])  inputX -= 1;
     if (keys['KeyD'] || keys['ArrowRight']) inputX += 1;
     if (keys['KeyW'] || keys['ArrowUp'])    inputY -= 1;
     if (keys['KeyS'] || keys['ArrowDown'])  inputY += 1;
 
-    // Джойстик
-    if (joystick.active) {
-        inputX += joystick.dx;
-        inputY += joystick.dy;
-    }
-
-    // Нормализация
     const len = Math.sqrt(inputX*inputX + inputY*inputY);
     if (len > 1) {
         inputX /= len;
         inputY /= len;
     }
 
-    // Поворот и ускорение
     if (len > 0.1) {
-        const targetAngle = Math.atan2(inputY, inputX);
-        // Плавный поворот
-        let diff = targetAngle - ship.angle;
-        while (diff > Math.PI) diff -= Math.PI*2;
-        while (diff < -Math.PI) diff += Math.PI*2;
-        ship.angle += diff * 0.15;
+        // Ускоряем в направлении ввода
+        ship.vx += inputX * ship.accel;
+        ship.vy += inputY * ship.accel;
+    }
 
-        ship.vx += Math.cos(ship.angle) * ship.accel * len;
-        ship.vy += Math.sin(ship.angle) * ship.accel * len;
+    // === ПРИТЯЖЕНИЕ К ЦЕНТРУ ЭКРАНА ===
+    const centerWorldX = (camera.x + VIEW_W / 2) / TILE;
+    const centerWorldY = (camera.y + VIEW_H / 2) / TILE;
+
+    const toCenterX = centerWorldX - ship.x;
+    const toCenterY = centerWorldY - ship.y;
+    const distToCenter = Math.sqrt(toCenterX*toCenterX + toCenterY*toCenterY);
+
+    if (distToCenter > 0.8) {
+        const force = Math.min(distToCenter * ship.homeForce, 0.2);
+        ship.vx += (toCenterX / distToCenter) * force;
+        ship.vy += (toCenterY / distToCenter) * force;
     }
 
     // Трение
@@ -418,45 +316,29 @@ function update(dt) {
         ship.vy = ship.vy / speed * ship.maxSpeed;
     }
 
-    // === ПРИТЯЖЕНИЕ К ЦЕНТРУ ЭКРАНА ===
-    // Центр экрана в мировых координатах
-    const centerWorldX = (camera.x + VIEW_W / 2) / TILE;
-    const centerWorldY = (camera.y + VIEW_H / 2) / TILE;
+    // Движение — БЕЗ коллизий, летает над всем
+    ship.x += ship.vx * dt * 60;
+    ship.y += ship.vy * dt * 60;
 
-    const toCenterX = centerWorldX - ship.x;
-    const toCenterY = centerWorldY - ship.y;
-    const distToCenter = Math.sqrt(toCenterX*toCenterX + toCenterY*toCenterY);
+    // Не даём улететь за границы карты
+    ship.x = Math.max(0.5, Math.min(MAP_SIZE - 0.5, ship.x));
+    ship.y = Math.max(0.5, Math.min(MAP_SIZE - 0.5, ship.y));
 
-    // Сила растёт с расстоянием (но не слишком сильно)
-    if (distToCenter > 0.5) {
-        const force = Math.min(distToCenter * ship.homeForce, 0.18);
-        ship.vx += (toCenterX / distToCenter) * force;
-        ship.vy += (toCenterY / distToCenter) * force;
+    // === КОРАБЛЬ ВСЕГДА СМОТРИТ В СТОРОНУ ДВИЖЕНИЯ ===
+    if (speed > 0.15) {
+        const targetAngle = Math.atan2(ship.vy, ship.vx);
+        let diff = targetAngle - ship.angle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        // Плавный, но быстрый поворот в сторону скорости
+        ship.angle += diff * 0.22;
     }
 
-    // Движение + коллизии
-    const nextX = ship.x + ship.vx * dt * 60;
-    const nextY = ship.y + ship.vy * dt * 60;
-
-    const canPass = (px, py) => {
-        const tx = Math.floor(px);
-        const ty = Math.floor(py);
-        if (tx < 0 || ty < 0 || tx >= MAP_SIZE || ty >= MAP_SIZE) return false;
-        const t = map[ty][tx];
-        return t !== BLOCK.WALL && t !== BLOCK.WATER;
-    };
-
-    if (canPass(nextX, ship.y)) ship.x = nextX;
-    else ship.vx *= -0.3;
-
-    if (canPass(ship.x, nextY)) ship.y = nextY;
-    else ship.vy *= -0.3;
-
-    // Камера плавно следует за target (который двигается свайпом)
+    // Камера плавно следует за target
     camera.x += (camera.targetX - camera.x) * 0.18;
     camera.y += (camera.targetY - camera.y) * 0.18;
 
-    // Ограничение камеры границами карты
+    // Ограничение камеры
     const maxCamX = MAP_SIZE * TILE - VIEW_W;
     const maxCamY = MAP_SIZE * TILE - VIEW_H;
     camera.x = Math.max(0, Math.min(maxCamX, camera.x));
@@ -536,11 +418,11 @@ function draw() {
     ctx.arc(ship.size * 0.15, 0, 1.8, 0, Math.PI * 2);
     ctx.fill();
 
-    // Двигатель
+    // Двигатель (когда летит)
     const spd = Math.sqrt(ship.vx*ship.vx + ship.vy*ship.vy);
-    if (spd > 0.4) {
+    if (spd > 0.35) {
         ctx.fillStyle = '#ff4400';
-        ctx.globalAlpha = 0.6 + Math.random() * 0.4;
+        ctx.globalAlpha = 0.55 + Math.random() * 0.4;
         ctx.beginPath();
         ctx.moveTo(-ship.size * 0.55, -3.5);
         ctx.lineTo(-ship.size * 0.55 - 7 - Math.random()*5, 0);
@@ -575,7 +457,7 @@ function draw() {
     ctx.arc(mx + ship.x * miniScale, my + ship.y * miniScale, 3, 0, Math.PI*2);
     ctx.fill();
 
-    // Рамка видимой области на миникарте
+    // Рамка видимой области
     ctx.strokeStyle = 'rgba(255,255,255,0.4)';
     ctx.lineWidth = 1;
     ctx.strokeRect(
