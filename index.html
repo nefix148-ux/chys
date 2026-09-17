@@ -16,7 +16,7 @@ canvas{display:block;width:100%;height:100%;background:#0a0a0a}
 <body>
 <div id="ui">
 <h1>🚀 Космический набросок</h1>
-<div class="info">Клик по ядру — склад / сдать груз · Стрелка — поворот (←↑→↓) · Призрак + ✓</div>
+<div class="info">Клик — призрак/выбор · ✓ — подтвердить всё · Стрелка — поворот (←↑→↓) · Одна кнопка стройка/снос</div>
 </div>
 <canvas id="game"></canvas>
 
@@ -96,17 +96,21 @@ let showCoreInv=false;
 let map=[],oreMap=[],buildMap=[],items=[];
 let core={x:0,y:0};
 
-// Build state — category always selected (transport by default), cannot close
-let buildMode='place';
+// Build state
+let buildMode='place'; // 'place' | 'delete'
 let selectedCategory=CATEGORIES.find(c=>c.id==='transport');
 let selectedBlock=BTYPE.CONVEYOR;
 let selectedDir=DIR.RIGHT;
 let selectedConfig=null;
 let blockScroll=0;
-let ghost={active:false,x:0,y:0,type:null,dir:DIR.RIGHT};
+
+// Multi-ghost for placement
+let ghosts=[]; // [{x,y,type,dir}]
+// Multi-select for delete
+let deleteSel=new Set(); // "x,y" keys of main building tiles
 
 function generateMap(){
-  map=[];oreMap=[];buildMap=[];items=[];showCoreInv=false;ghost.active=false;
+  map=[];oreMap=[];buildMap=[];items=[];showCoreInv=false;ghosts=[];deleteSel.clear();
   for(let y=0;y<MAP_SIZE;y++){map[y]=[];oreMap[y]=[];buildMap[y]=[];for(let x=0;x<MAP_SIZE;x++){map[y][x]=BLOCK.DIRT;oreMap[y][x]=ORE.NONE;buildMap[y][x]=null}}
   for(let i=0;i<MAP_SIZE;i++)map[0][i]=map[MAP_SIZE-1][i]=map[i][0]=map[i][MAP_SIZE-1]=BLOCK.WALL;
   for(let l=0;l<12+Math.random()*8;l++){const cx=12+Math.floor(Math.random()*(MAP_SIZE-24)),cy=12+Math.floor(Math.random()*(MAP_SIZE-24)),r=5+Math.floor(Math.random()*11);for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;if(Math.sqrt((x-cx)**2+(y-cy)**2)<r-Math.random()*2.8)map[y][x]=BLOCK.WATER}}
@@ -131,8 +135,10 @@ window.addEventListener('keydown',e=>{
   if(e.code==='Space'){e.preventDefault();generateMap();spawnShip()}
   if(e.code==='KeyR'){
     selectedDir=(selectedDir+1)%4;
-    if(ghost.active)ghost.dir=selectedDir;
+    // update last ghost dir if any
+    if(ghosts.length)ghosts[ghosts.length-1].dir=selectedDir;
   }
+  if(e.code==='Escape'){ghosts=[];deleteSel.clear()}
 });
 window.addEventListener('keyup',e=>keys[e.code]=false);
 
@@ -154,24 +160,41 @@ function tryMine(tx,ty){
   else if((shipCargo.type===null||shipCargo.type===resId)&&shipCargo.amount<PLAYER_MAX){shipCargo.type=resId;shipCargo.amount++}
 }
 
-function canPlace(tx,ty,type){
+function canPlace(tx,ty,type,ignoreGhosts){
   const def=BUILDING_DEFS[type];if(!def)return false;const s=def.size;
-  for(let dy=0;dy<s;dy++)for(let dx=0;dx<s;dx++){const x=tx+dx,y=ty+dy;if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)return false;if(map[y][x]===BLOCK.WATER||map[y][x]===BLOCK.WALL||map[y][x]===BLOCK.CORE)return false;if(buildMap[y][x])return false}
+  for(let dy=0;dy<s;dy++)for(let dx=0;dx<s;dx++){
+    const x=tx+dx,y=ty+dy;
+    if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)return false;
+    if(map[y][x]===BLOCK.WATER||map[y][x]===BLOCK.WALL||map[y][x]===BLOCK.CORE)return false;
+    if(buildMap[y][x])return false;
+    // check overlap with other ghosts
+    if(!ignoreGhosts){
+      for(const g of ghosts){
+        const gs=BUILDING_DEFS[g.type]?.size||1;
+        if(x>=g.x&&x<g.x+gs&&y>=g.y&&y<g.y+gs)return false;
+      }
+    }
+  }
   return true;
 }
 
 function placeBuilding(tx,ty,type,dir){
-  if(!canPlace(tx,ty,type))return false;
+  if(!canPlace(tx,ty,type,true))return false;
   const def=BUILDING_DEFS[type];const s=def.size;
   const b={type,dir:dir??selectedDir,config:selectedConfig,batch:0};
   for(let dy=0;dy<s;dy++)for(let dx=0;dx<s;dx++)buildMap[ty+dy][tx+dx]=(dx===0&&dy===0)?b:{type:'part',parentX:tx,parentY:ty};
   return true;
 }
 
-function removeBuilding(tx,ty){
-  const b=buildMap[ty]?.[tx];if(!b)return;
-  let px=tx,py=ty;if(b.type==='part'){px=b.parentX;py=b.parentY}
-  const main=buildMap[py][px];if(!main||main.type==='part')return;
+function getMainBuildingKey(tx,ty){
+  const b=buildMap[ty]?.[tx];if(!b)return null;
+  if(b.type==='part')return b.parentX+','+b.parentY;
+  return tx+','+ty;
+}
+
+function removeBuildingAtKey(key){
+  const [px,py]=key.split(',').map(Number);
+  const main=buildMap[py]?.[px];if(!main||main.type==='part')return;
   const s=BUILDING_DEFS[main.type]?.size||1;
   for(let dy=0;dy<s;dy++)for(let dx=0;dx<s;dx++)buildMap[py+dy][px+dx]=null;
 }
@@ -180,26 +203,30 @@ const BTN_H=36,BTN_W=40,GAP=4;
 function getMenuLayout(){
   const menuBottom=VIEW_H-8;
   const modeY=menuBottom-BTN_H;
-  const modeX=VIEW_W-12-BTN_W*2-GAP;
+  // Single mode button + rotate + confirm
+  const modeX=VIEW_W-12-BTN_W;
   const catStartY=menuBottom-BTN_H*2-GAP-8;
   return{menuBottom,modeY,modeX,catStartY};
 }
 
+function hasPending(){
+  return ghosts.length>0||deleteSel.size>0;
+}
+
 function getBuildMenuHit(mx,my){
   const L=getMenuLayout();
-  if(my>=L.modeY&&my<=L.modeY+BTN_H){
-    if(mx>=L.modeX&&mx<=L.modeX+BTN_W)return{type:'mode',mode:'delete'};
-    if(mx>=L.modeX+BTN_W+GAP&&mx<=L.modeX+BTN_W*2+GAP)return{type:'mode',mode:'place'};
+  // Mode toggle (single button)
+  if(my>=L.modeY&&my<=L.modeY+BTN_H&&mx>=L.modeX&&mx<=L.modeX+BTN_W)return{type:'mode'};
+
+  let leftX=L.modeX-BTN_W-GAP;
+  // Confirm
+  if(hasPending()&&my>=L.modeY&&my<=L.modeY+BTN_H&&mx>=leftX&&mx<=leftX+BTN_W)return{type:'confirm'};
+  if(hasPending())leftX-=BTN_W+GAP;
+  // Rotate (only in place mode with directional block)
+  if(buildMode==='place'&&selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional){
+    if(my>=L.modeY&&my<=L.modeY+BTN_H&&mx>=leftX&&mx<=leftX+BTN_W)return{type:'rotate'};
   }
-  const extraX=L.modeX-BTN_W-GAP;
-  if(my>=L.modeY&&my<=L.modeY+BTN_H){
-    // confirm leftmost when ghost
-    if(ghost.active){
-      const confX=extraX-(selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional?BTN_W+GAP:0);
-      if(mx>=confX&&mx<=confX+BTN_W)return{type:'confirm'};
-    }
-    if(selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional&&mx>=extraX&&mx<=extraX+BTN_W)return{type:'rotate'};
-  }
+
   for(const cat of CATEGORIES){
     const col=cat.side==='left'?0:1;
     const bx=VIEW_W-12-(2-col)*(BTN_W+GAP);
@@ -228,31 +255,25 @@ function handlePointerDown(cx,cy){
   const hit=getBuildMenuHit(cx,cy);
   if(hit){
     if(hit.type==='mode'){
-      if(hit.mode==='delete'){buildMode=buildMode==='delete'?'place':'delete';ghost.active=false}
-      else{buildMode='place'}
+      // Toggle place <-> delete
+      if(buildMode==='place'){buildMode='delete';ghosts=[]}
+      else{buildMode='place';deleteSel.clear()}
     }else if(hit.type==='category'){
-      // Always switch, never close
-      selectedCategory=hit.cat;
-      blockScroll=0;
-      if(hit.cat.blocks.length){
-        selectedBlock=hit.cat.blocks[0];
-        buildMode='place';
-      }else{
-        selectedBlock=null;
-      }
-      ghost.active=false;
+      selectedCategory=hit.cat;blockScroll=0;
+      if(hit.cat.blocks.length){selectedBlock=hit.cat.blocks[0];buildMode='place';deleteSel.clear()}
+      else selectedBlock=null;
     }else if(hit.type==='block'){
-      selectedBlock=hit.block;
-      buildMode='place';
-      selectedDir=DIR.RIGHT;
-      ghost.active=false;
+      selectedBlock=hit.block;buildMode='place';selectedDir=DIR.RIGHT;deleteSel.clear();
     }else if(hit.type==='rotate'){
       selectedDir=(selectedDir+1)%4;
-      if(ghost.active)ghost.dir=selectedDir;
+      if(ghosts.length)ghosts[ghosts.length-1].dir=selectedDir;
     }else if(hit.type==='confirm'){
-      if(ghost.active){
-        placeBuilding(ghost.x,ghost.y,ghost.type,ghost.dir);
-        ghost.active=false;
+      if(buildMode==='place'&&ghosts.length){
+        for(const g of ghosts)placeBuilding(g.x,g.y,g.type,g.dir);
+        ghosts=[];
+      }else if(buildMode==='delete'&&deleteSel.size){
+        for(const key of deleteSel)removeBuildingAtKey(key);
+        deleteSel.clear();
       }
     }
     return;
@@ -273,7 +294,6 @@ function handlePointerUp(cx,cy){
 
   const tile=getTileFromScreen(cx,cy);
 
-  // Deposit to core: near core (radius 6) with cargo
   const distShipToCore=Math.sqrt((ship.x-core.x)**2+(ship.y-core.y)**2);
   const clickedCore=map[tile.y]&&map[tile.y][tile.x]===BLOCK.CORE;
   const nearCoreClick=Math.sqrt((tile.x-core.x)**2+(tile.y-core.y)**2)<=2;
@@ -281,38 +301,36 @@ function handlePointerUp(cx,cy){
   if((clickedCore||nearCoreClick)&&distShipToCore<=6){
     if(shipCargo.amount>0&&shipCargo.type){
       coreInventory[shipCargo.type]=(coreInventory[shipCargo.type]||0)+shipCargo.amount;
-      shipCargo.type=null;
-      shipCargo.amount=0;
-      showCoreInv=true;
-      return;
+      shipCargo.type=null;shipCargo.amount=0;showCoreInv=true;return;
     }
-    showCoreInv=!showCoreInv;
-    return;
+    showCoreInv=!showCoreInv;return;
   }
-  if(clickedCore){
-    showCoreInv=!showCoreInv;
-    return;
-  }
+  if(clickedCore){showCoreInv=!showCoreInv;return}
 
-  // Drop cargo on conveyor
   if(shipCargo.amount>0){
     const b=buildMap[tile.y]?.[tile.x];
     if(b&&b.type!=='part'&&(b.type===BTYPE.CONVEYOR||b.type===BTYPE.TITANIUM_CONVEYOR||b.type===BTYPE.PLASTANIUM_CONVEYOR||b.type===BTYPE.ROUTER||b.type===BTYPE.JUNCTION)){
       const dist=Math.sqrt((ship.x-tile.x-.5)**2+(ship.y-tile.y-.5)**2);
       if(dist<5){
         items.push({x:tile.x+.5,y:tile.y+.5,type:shipCargo.type,progress:0,dir:b.dir??DIR.RIGHT});
-        shipCargo.amount--;
-        if(shipCargo.amount<=0){shipCargo.type=null;shipCargo.amount=0}
+        shipCargo.amount--;if(shipCargo.amount<=0){shipCargo.type=null;shipCargo.amount=0}
         return;
       }
     }
   }
 
-  if(buildMode==='delete'){removeBuilding(tile.x,tile.y);return}
+  if(buildMode==='delete'){
+    const key=getMainBuildingKey(tile.x,tile.y);
+    if(key){
+      if(deleteSel.has(key))deleteSel.delete(key);
+      else deleteSel.add(key);
+    }
+    return;
+  }
 
   if(buildMode==='place'&&selectedBlock){
     if(canPlace(tile.x,tile.y,selectedBlock)){
-      ghost={active:true,x:tile.x,y:tile.y,type:selectedBlock,dir:selectedDir};
+      ghosts.push({x:tile.x,y:tile.y,type:selectedBlock,dir:selectedDir});
     }
     return;
   }
@@ -402,26 +420,40 @@ function drawIcon(x,y,size,type,color){
   ctx.restore();
 }
 
+function drawDirArrow(cx,cy,d,alpha){
+  ctx.fillStyle='#fff';ctx.globalAlpha=alpha??.85;
+  ctx.beginPath();
+  if(d===DIR.RIGHT){ctx.moveTo(cx+6,cy);ctx.lineTo(cx-2,cy-5);ctx.lineTo(cx-2,cy+5)}
+  else if(d===DIR.LEFT){ctx.moveTo(cx-6,cy);ctx.lineTo(cx+2,cy-5);ctx.lineTo(cx+2,cy+5)}
+  else if(d===DIR.DOWN){ctx.moveTo(cx,cy+6);ctx.lineTo(cx-5,cy-2);ctx.lineTo(cx+5,cy-2)}
+  else{ctx.moveTo(cx,cy-6);ctx.lineTo(cx-5,cy+2);ctx.lineTo(cx+5,cy+2)}
+  ctx.closePath();ctx.fill();ctx.globalAlpha=1;
+}
+
 function drawBuildMenu(){
   const L=getMenuLayout();
-  ctx.fillStyle=buildMode==='delete'?'rgba(255,60,60,.5)':'rgba(40,40,40,.85)';
-  ctx.fillRect(L.modeX,L.modeY,BTN_W,BTN_H);ctx.strokeStyle=buildMode==='delete'?'#f66':'#666';ctx.strokeRect(L.modeX,L.modeY,BTN_W,BTN_H);
-  ctx.fillStyle='#fff';ctx.font='16px system-ui';ctx.textAlign='center';ctx.fillText('🗑',L.modeX+BTN_W/2,L.modeY+24);
-  ctx.fillStyle=buildMode==='place'?'rgba(255,140,0,.4)':'rgba(40,40,40,.85)';
-  ctx.fillRect(L.modeX+BTN_W+GAP,L.modeY,BTN_W,BTN_H);ctx.strokeStyle=buildMode==='place'?'#ff8c00':'#666';ctx.strokeRect(L.modeX+BTN_W+GAP,L.modeY,BTN_W,BTN_H);
-  ctx.fillText('🔨',L.modeX+BTN_W+GAP+BTN_W/2,L.modeY+24);
+  // Single mode toggle button
+  const isDel=buildMode==='delete';
+  ctx.fillStyle=isDel?'rgba(255,60,60,.55)':'rgba(255,140,0,.4)';
+  ctx.fillRect(L.modeX,L.modeY,BTN_W,BTN_H);
+  ctx.strokeStyle=isDel?'#f66':'#ff8c00';ctx.strokeRect(L.modeX,L.modeY,BTN_W,BTN_H);
+  ctx.fillStyle='#fff';ctx.font='16px system-ui';ctx.textAlign='center';
+  ctx.fillText(isDel?'🗑':'🔨',L.modeX+BTN_W/2,L.modeY+24);
 
-  const extraX=L.modeX-BTN_W-GAP;
-  if(selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional){
-    ctx.fillStyle='rgba(60,60,80,.9)';ctx.fillRect(extraX,L.modeY,BTN_W,BTN_H);
-    ctx.strokeStyle='#8af';ctx.strokeRect(extraX,L.modeY,BTN_W,BTN_H);
-    ctx.fillStyle='#fff';ctx.font='20px system-ui';ctx.fillText(DIR_ARROW[selectedDir],extraX+BTN_W/2,L.modeY+25);
+  let leftX=L.modeX-BTN_W-GAP;
+  // Confirm
+  if(hasPending()){
+    ctx.fillStyle=isDel?'rgba(180,40,40,.9)':'rgba(40,120,40,.9)';
+    ctx.fillRect(leftX,L.modeY,BTN_W,BTN_H);
+    ctx.strokeStyle=isDel?'#f66':'#6f6';ctx.strokeRect(leftX,L.modeY,BTN_W,BTN_H);
+    ctx.fillStyle='#fff';ctx.font='20px system-ui';ctx.fillText('✓',leftX+BTN_W/2,L.modeY+25);
+    leftX-=BTN_W+GAP;
   }
-  if(ghost.active){
-    const confX=extraX-(selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional?BTN_W+GAP:0);
-    ctx.fillStyle='rgba(40,120,40,.9)';ctx.fillRect(confX,L.modeY,BTN_W,BTN_H);
-    ctx.strokeStyle='#6f6';ctx.strokeRect(confX,L.modeY,BTN_W,BTN_H);
-    ctx.fillStyle='#fff';ctx.font='20px system-ui';ctx.fillText('✓',confX+BTN_W/2,L.modeY+25);
+  // Rotate
+  if(buildMode==='place'&&selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional){
+    ctx.fillStyle='rgba(60,60,80,.9)';ctx.fillRect(leftX,L.modeY,BTN_W,BTN_H);
+    ctx.strokeStyle='#8af';ctx.strokeRect(leftX,L.modeY,BTN_W,BTN_H);
+    ctx.fillStyle='#fff';ctx.font='20px system-ui';ctx.fillText(DIR_ARROW[selectedDir],leftX+BTN_W/2,L.modeY+25);
   }
 
   for(const cat of CATEGORIES){
@@ -434,7 +466,6 @@ function drawBuildMenu(){
     ctx.fillStyle=active?'#ffcc66':'#aaa';ctx.font='9px system-ui';ctx.textAlign='center';ctx.fillText(cat.name.slice(0,6),bx+BTN_W/2,by+22);
   }
 
-  // Block list always visible for selected category
   if(selectedCategory){
     const blocks=selectedCategory.blocks;
     const listW=3*(BTN_W+GAP)-GAP;
@@ -444,8 +475,7 @@ function drawBuildMenu(){
     ctx.fillStyle='rgba(20,20,28,.92)';ctx.fillRect(listX-4,listY-4,listW+8,listH+8);
     ctx.strokeStyle='#444';ctx.strokeRect(listX-4,listY-4,listW+8,listH+8);
     if(blocks.length===0){
-      ctx.fillStyle='#666';ctx.font='11px system-ui';ctx.textAlign='center';
-      ctx.fillText('пусто',listX+listW/2,listY+listH/2);
+      ctx.fillStyle='#666';ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillText('пусто',listX+listW/2,listY+listH/2);
     }else{
       ctx.save();ctx.beginPath();ctx.rect(listX,listY,listW,listH);ctx.clip();
       blocks.forEach((bt,i)=>{
@@ -500,44 +530,41 @@ function draw(){
       if(type===BLOCK.WALL){ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.strokeRect(sx+.5,sy+.5,TILE-1,TILE-1)}
     }
     if(ore!==ORE.NONE){ctx.fillStyle=ORE_COLORS[ore];ctx.globalAlpha=.85;ctx.fillRect(sx+1,sy+1,TILE-2,TILE-2);ctx.globalAlpha=1;ctx.fillStyle='rgba(255,255,255,.2)';ctx.beginPath();ctx.moveTo(sx+3,sy+3);ctx.lineTo(sx+TILE-5,sy+4);ctx.lineTo(sx+4,sy+TILE-6);ctx.closePath();ctx.fill()}
+
     const b=buildMap[y][x];
     if(b&&b.type!=='part'){
       const def=BUILDING_DEFS[b.type];
       if(def){
         ctx.fillStyle=def.color;ctx.globalAlpha=.9;ctx.fillRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);ctx.globalAlpha=1;
-        if(def.directional){
-          ctx.fillStyle='#fff';ctx.globalAlpha=.85;
-          const cx2=sx+TILE*def.size/2,cy2=sy+TILE*def.size/2;
-          const d=b.dir??0;
-          ctx.beginPath();
-          if(d===DIR.RIGHT){ctx.moveTo(cx2+6,cy2);ctx.lineTo(cx2-2,cy2-5);ctx.lineTo(cx2-2,cy2+5)}
-          else if(d===DIR.LEFT){ctx.moveTo(cx2-6,cy2);ctx.lineTo(cx2+2,cy2-5);ctx.lineTo(cx2+2,cy2+5)}
-          else if(d===DIR.DOWN){ctx.moveTo(cx2,cy2+6);ctx.lineTo(cx2-5,cy2-2);ctx.lineTo(cx2+5,cy2-2)}
-          else{ctx.moveTo(cx2,cy2-6);ctx.lineTo(cx2-5,cy2+2);ctx.lineTo(cx2+5,cy2+2)}
-          ctx.closePath();ctx.fill();ctx.globalAlpha=1;
+        if(def.directional)drawDirArrow(sx+TILE*def.size/2,sy+TILE*def.size/2,b.dir??0);
+        // Red outline if selected for delete
+        const key=x+','+y;
+        if(deleteSel.has(key)){
+          ctx.strokeStyle='#ff3333';ctx.lineWidth=2.5;ctx.strokeRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);
+        }
+      }
+    }else if(b&&b.type==='part'){
+      // also outline parts of selected buildings
+      const key=b.parentX+','+b.parentY;
+      if(deleteSel.has(key)){
+        const main=buildMap[b.parentY][b.parentX];
+        const def=main&&BUILDING_DEFS[main.type];
+        if(def&&b.parentX===x&&b.parentY===y){/* drawn on main */}
+        else{
+          ctx.strokeStyle='#ff3333';ctx.lineWidth=2;ctx.strokeRect(sx+1,sy+1,TILE-2,TILE-2);
         }
       }
     }
   }
 
-  if(ghost.active){
-    const def=BUILDING_DEFS[ghost.type];
-    if(def){
-      const sx=ghost.x*TILE-camera.x,sy=ghost.y*TILE-camera.y;
-      ctx.fillStyle=def.color;ctx.globalAlpha=.4;ctx.fillRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);ctx.globalAlpha=1;
-      ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.strokeRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);ctx.setLineDash([]);
-      if(def.directional){
-        ctx.fillStyle='#fff';ctx.globalAlpha=.9;
-        const cx2=sx+TILE*def.size/2,cy2=sy+TILE*def.size/2;
-        const d=ghost.dir;
-        ctx.beginPath();
-        if(d===DIR.RIGHT){ctx.moveTo(cx2+6,cy2);ctx.lineTo(cx2-2,cy2-5);ctx.lineTo(cx2-2,cy2+5)}
-        else if(d===DIR.LEFT){ctx.moveTo(cx2-6,cy2);ctx.lineTo(cx2+2,cy2-5);ctx.lineTo(cx2+2,cy2+5)}
-        else if(d===DIR.DOWN){ctx.moveTo(cx2,cy2+6);ctx.lineTo(cx2-5,cy2-2);ctx.lineTo(cx2+5,cy2-2)}
-        else{ctx.moveTo(cx2,cy2-6);ctx.lineTo(cx2-5,cy2+2);ctx.lineTo(cx2+5,cy2+2)}
-        ctx.closePath();ctx.fill();ctx.globalAlpha=1;
-      }
-    }
+  // Ghosts (all stay until confirm)
+  for(const g of ghosts){
+    const def=BUILDING_DEFS[g.type];
+    if(!def)continue;
+    const sx=g.x*TILE-camera.x,sy=g.y*TILE-camera.y;
+    ctx.fillStyle=def.color;ctx.globalAlpha=.4;ctx.fillRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);ctx.globalAlpha=1;
+    ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.strokeRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);ctx.setLineDash([]);
+    if(def.directional)drawDirArrow(sx+TILE*def.size/2,sy+TILE*def.size/2,g.dir,.9);
   }
 
   for(const it of items){const res=RESOURCES.find(r=>r.id===it.type);if(!res)continue;const isx=it.x*TILE-camera.x,isy=it.y*TILE-camera.y;ctx.fillStyle=res.color;ctx.beginPath();ctx.arc(isx,isy,4,0,Math.PI*2);ctx.fill()}
@@ -570,6 +597,15 @@ function draw(){
 
   drawCoreInv();
   drawBuildMenu();
+
+  // Status hint
+  if(ghosts.length||deleteSel.size){
+    ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(VIEW_W/2-100,10,200,20);
+    ctx.fillStyle=buildMode==='delete'?'#f88':'#8f8';ctx.font='11px system-ui';ctx.textAlign='center';
+    const n=buildMode==='delete'?deleteSel.size:ghosts.length;
+    ctx.fillText((buildMode==='delete'?'К удалению: ':'Призраков: ')+n+' · ✓ подтвердить',VIEW_W/2,24);
+    ctx.textAlign='left';
+  }
 }
 
 let lastTime=performance.now();
