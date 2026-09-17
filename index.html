@@ -16,7 +16,7 @@ canvas{display:block;width:100%;height:100%;background:#0a0a0a}
 <body>
 <div id="ui">
 <h1>🚀 Космический набросок</h1>
-<div class="info">Клик — призрак/выбор · ✓ — подтвердить всё · Стрелка — поворот (←↑→↓) · Одна кнопка стройка/снос</div>
+<div class="info">🔨/🗑 — режим · Клик — призрак/выбор · ✓ — подтвердить · R/стрелка — поворот</div>
 </div>
 <canvas id="game"></canvas>
 
@@ -96,18 +96,14 @@ let showCoreInv=false;
 let map=[],oreMap=[],buildMap=[],items=[];
 let core={x:0,y:0};
 
-// Build state
-let buildMode='place'; // 'place' | 'delete'
+let buildMode='place';
 let selectedCategory=CATEGORIES.find(c=>c.id==='transport');
 let selectedBlock=BTYPE.CONVEYOR;
 let selectedDir=DIR.RIGHT;
 let selectedConfig=null;
 let blockScroll=0;
-
-// Multi-ghost for placement
-let ghosts=[]; // [{x,y,type,dir}]
-// Multi-select for delete
-let deleteSel=new Set(); // "x,y" keys of main building tiles
+let ghosts=[];
+let deleteSel=new Set();
 
 function generateMap(){
   map=[];oreMap=[];buildMap=[];items=[];showCoreInv=false;ghosts=[];deleteSel.clear();
@@ -129,15 +125,13 @@ const camera={x:0,y:0,targetX:0,targetY:0};
 const keys={};
 let lastClickTime=0,lastClickTile=null;
 let isDraggingCamera=false,lastTouchX=0,lastTouchY=0,dragStartX=0,dragStartY=0,didDrag=false;
+let menuDown=false; // true if pointer started on menu — ignore map click on up
+let lastPointerType=null; // avoid mouse+touch double fire
 
 window.addEventListener('keydown',e=>{
   keys[e.code]=true;
   if(e.code==='Space'){e.preventDefault();generateMap();spawnShip()}
-  if(e.code==='KeyR'){
-    selectedDir=(selectedDir+1)%4;
-    // update last ghost dir if any
-    if(ghosts.length)ghosts[ghosts.length-1].dir=selectedDir;
-  }
+  if(e.code==='KeyR'){selectedDir=(selectedDir+1)%4;if(ghosts.length)ghosts[ghosts.length-1].dir=selectedDir}
   if(e.code==='Escape'){ghosts=[];deleteSel.clear()}
 });
 window.addEventListener('keyup',e=>keys[e.code]=false);
@@ -167,7 +161,6 @@ function canPlace(tx,ty,type,ignoreGhosts){
     if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)return false;
     if(map[y][x]===BLOCK.WATER||map[y][x]===BLOCK.WALL||map[y][x]===BLOCK.CORE)return false;
     if(buildMap[y][x])return false;
-    // check overlap with other ghosts
     if(!ignoreGhosts){
       for(const g of ghosts){
         const gs=BUILDING_DEFS[g.type]?.size||1;
@@ -187,56 +180,56 @@ function placeBuilding(tx,ty,type,dir){
 }
 
 function getMainBuildingKey(tx,ty){
-  const b=buildMap[ty]?.[tx];if(!b)return null;
+  if(ty<0||tx<0||ty>=MAP_SIZE||tx>=MAP_SIZE)return null;
+  const b=buildMap[ty][tx];
+  if(!b)return null;
   if(b.type==='part')return b.parentX+','+b.parentY;
   return tx+','+ty;
 }
 
 function removeBuildingAtKey(key){
-  const [px,py]=key.split(',').map(Number);
-  const main=buildMap[py]?.[px];if(!main||main.type==='part')return;
+  const parts=key.split(',');
+  const px=+parts[0],py=+parts[1];
+  const main=buildMap[py]?.[px];
+  if(!main||main.type==='part')return;
   const s=BUILDING_DEFS[main.type]?.size||1;
-  for(let dy=0;dy<s;dy++)for(let dx=0;dx<s;dx++)buildMap[py+dy][px+dx]=null;
+  for(let dy=0;dy<s;dy++)for(let dx=0;dx<s;dx++){
+    if(py+dy>=0&&py+dy<MAP_SIZE&&px+dx>=0&&px+dx<MAP_SIZE)buildMap[py+dy][px+dx]=null;
+  }
 }
 
-const BTN_H=36,BTN_W=40,GAP=4;
+const BTN_H=40,BTN_W=44,GAP=5;
 function getMenuLayout(){
-  const menuBottom=VIEW_H-8;
+  const menuBottom=VIEW_H-10;
   const modeY=menuBottom-BTN_H;
-  // Single mode button + rotate + confirm
-  const modeX=VIEW_W-12-BTN_W;
-  const catStartY=menuBottom-BTN_H*2-GAP-8;
+  const modeX=VIEW_W-14-BTN_W;
+  const catStartY=menuBottom-BTN_H*2-GAP-10;
   return{menuBottom,modeY,modeX,catStartY};
 }
 
-function hasPending(){
-  return ghosts.length>0||deleteSel.size>0;
-}
+function hasPending(){return ghosts.length>0||deleteSel.size>0}
 
 function getBuildMenuHit(mx,my){
   const L=getMenuLayout();
-  // Mode toggle (single button)
   if(my>=L.modeY&&my<=L.modeY+BTN_H&&mx>=L.modeX&&mx<=L.modeX+BTN_W)return{type:'mode'};
 
   let leftX=L.modeX-BTN_W-GAP;
-  // Confirm
   if(hasPending()&&my>=L.modeY&&my<=L.modeY+BTN_H&&mx>=leftX&&mx<=leftX+BTN_W)return{type:'confirm'};
   if(hasPending())leftX-=BTN_W+GAP;
-  // Rotate (only in place mode with directional block)
   if(buildMode==='place'&&selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional){
     if(my>=L.modeY&&my<=L.modeY+BTN_H&&mx>=leftX&&mx<=leftX+BTN_W)return{type:'rotate'};
   }
 
   for(const cat of CATEGORIES){
     const col=cat.side==='left'?0:1;
-    const bx=VIEW_W-12-(2-col)*(BTN_W+GAP);
+    const bx=VIEW_W-14-(2-col)*(BTN_W+GAP);
     const by=L.catStartY-cat.row*(BTN_H+GAP);
     if(mx>=bx&&mx<=bx+BTN_W&&my>=by&&my<=by+BTN_H)return{type:'category',cat};
   }
   if(selectedCategory){
     const blocks=selectedCategory.blocks;
     const listW=3*(BTN_W+GAP)-GAP;
-    const listX=VIEW_W-12-2*(BTN_W+GAP)-8-listW;
+    const listX=VIEW_W-14-2*(BTN_W+GAP)-10-listW;
     const listY=L.catStartY-3*(BTN_H+GAP);
     const listH=4*(BTN_H+GAP)-GAP;
     if(mx>=listX&&mx<=listX+listW&&my>=listY&&my<=listY+listH){
@@ -250,32 +243,56 @@ function getBuildMenuHit(mx,my){
   return null;
 }
 
-function handlePointerDown(cx,cy){
+function applyMenuHit(hit){
+  if(!hit)return;
+  if(hit.type==='mode'){
+    if(buildMode==='place'){
+      buildMode='delete';
+      ghosts=[];
+    }else{
+      buildMode='place';
+      deleteSel.clear();
+    }
+  }else if(hit.type==='category'){
+    selectedCategory=hit.cat;
+    blockScroll=0;
+    if(hit.cat.blocks.length){
+      selectedBlock=hit.cat.blocks[0];
+      buildMode='place';
+      deleteSel.clear();
+    }else selectedBlock=null;
+  }else if(hit.type==='block'){
+    selectedBlock=hit.block;
+    buildMode='place';
+    selectedDir=DIR.RIGHT;
+    deleteSel.clear();
+  }else if(hit.type==='rotate'){
+    selectedDir=(selectedDir+1)%4;
+    if(ghosts.length)ghosts[ghosts.length-1].dir=selectedDir;
+  }else if(hit.type==='confirm'){
+    if(buildMode==='place'&&ghosts.length){
+      for(const g of ghosts)placeBuilding(g.x,g.y,g.type,g.dir);
+      ghosts=[];
+    }else if(buildMode==='delete'&&deleteSel.size){
+      for(const key of [...deleteSel])removeBuildingAtKey(key);
+      deleteSel.clear();
+    }
+  }
+}
+
+function handlePointerDown(cx,cy,ptype){
+  // Ignore synthetic mouse after touch
+  if(ptype==='mouse'&&lastPointerType==='touch')return;
+  lastPointerType=ptype;
+
   dragStartX=cx;dragStartY=cy;didDrag=false;lastTouchX=cx;lastTouchY=cy;
+  menuDown=false;
+
   const hit=getBuildMenuHit(cx,cy);
   if(hit){
-    if(hit.type==='mode'){
-      // Toggle place <-> delete
-      if(buildMode==='place'){buildMode='delete';ghosts=[]}
-      else{buildMode='place';deleteSel.clear()}
-    }else if(hit.type==='category'){
-      selectedCategory=hit.cat;blockScroll=0;
-      if(hit.cat.blocks.length){selectedBlock=hit.cat.blocks[0];buildMode='place';deleteSel.clear()}
-      else selectedBlock=null;
-    }else if(hit.type==='block'){
-      selectedBlock=hit.block;buildMode='place';selectedDir=DIR.RIGHT;deleteSel.clear();
-    }else if(hit.type==='rotate'){
-      selectedDir=(selectedDir+1)%4;
-      if(ghosts.length)ghosts[ghosts.length-1].dir=selectedDir;
-    }else if(hit.type==='confirm'){
-      if(buildMode==='place'&&ghosts.length){
-        for(const g of ghosts)placeBuilding(g.x,g.y,g.type,g.dir);
-        ghosts=[];
-      }else if(buildMode==='delete'&&deleteSel.size){
-        for(const key of deleteSel)removeBuildingAtKey(key);
-        deleteSel.clear();
-      }
-    }
+    menuDown=true;
+    // Apply menu action ONLY on down once
+    applyMenuHit(hit);
     return;
   }
   isDraggingCamera=true;
@@ -283,19 +300,30 @@ function handlePointerDown(cx,cy){
 
 function handlePointerMove(cx,cy){
   const dx=cx-lastTouchX,dy=cy-lastTouchY;
-  if(Math.abs(cx-dragStartX)>6||Math.abs(cy-dragStartY)>6)didDrag=true;
-  if(isDraggingCamera){camera.targetX-=dx;camera.targetY-=dy;lastTouchX=cx;lastTouchY=cy}
+  if(Math.abs(cx-dragStartX)>8||Math.abs(cy-dragStartY)>8)didDrag=true;
+  if(isDraggingCamera&&!menuDown){camera.targetX-=dx;camera.targetY-=dy;lastTouchX=cx;lastTouchY=cy}
 }
 
-function handlePointerUp(cx,cy){
+function handlePointerUp(cx,cy,ptype){
+  if(ptype==='mouse'&&lastPointerType==='touch')return;
+
   isDraggingCamera=false;
+
+  // If started on menu — never process map click
+  if(menuDown){
+    menuDown=false;
+    return;
+  }
   if(didDrag)return;
+
+  // Safety: if still over menu, ignore
   if(getBuildMenuHit(cx,cy))return;
 
   const tile=getTileFromScreen(cx,cy);
+  if(tile.x<0||tile.y<0||tile.x>=MAP_SIZE||tile.y>=MAP_SIZE)return;
 
   const distShipToCore=Math.sqrt((ship.x-core.x)**2+(ship.y-core.y)**2);
-  const clickedCore=map[tile.y]&&map[tile.y][tile.x]===BLOCK.CORE;
+  const clickedCore=map[tile.y][tile.x]===BLOCK.CORE;
   const nearCoreClick=Math.sqrt((tile.x-core.x)**2+(tile.y-core.y)**2)<=2;
 
   if((clickedCore||nearCoreClick)&&distShipToCore<=6){
@@ -308,7 +336,7 @@ function handlePointerUp(cx,cy){
   if(clickedCore){showCoreInv=!showCoreInv;return}
 
   if(shipCargo.amount>0){
-    const b=buildMap[tile.y]?.[tile.x];
+    const b=buildMap[tile.y][tile.x];
     if(b&&b.type!=='part'&&(b.type===BTYPE.CONVEYOR||b.type===BTYPE.TITANIUM_CONVEYOR||b.type===BTYPE.PLASTANIUM_CONVEYOR||b.type===BTYPE.ROUTER||b.type===BTYPE.JUNCTION)){
       const dist=Math.sqrt((ship.x-tile.x-.5)**2+(ship.y-tile.y-.5)**2);
       if(dist<5){
@@ -319,6 +347,7 @@ function handlePointerUp(cx,cy){
     }
   }
 
+  // DELETE MODE: select/deselect buildings
   if(buildMode==='delete'){
     const key=getMainBuildingKey(tile.x,tile.y);
     if(key){
@@ -328,6 +357,7 @@ function handlePointerUp(cx,cy){
     return;
   }
 
+  // PLACE MODE: add ghost
   if(buildMode==='place'&&selectedBlock){
     if(canPlace(tile.x,tile.y,selectedBlock)){
       ghosts.push({x:tile.x,y:tile.y,type:selectedBlock,dir:selectedDir});
@@ -341,6 +371,30 @@ function handlePointerUp(cx,cy){
   }else{lastClickTile=tile;lastClickTime=now}
 }
 
+// Prefer pointer events if available to avoid mouse+touch double
+let usingPointer=false;
+if(window.PointerEvent){
+  usingPointer=true;
+  canvas.addEventListener('pointerdown',e=>{
+    if(e.button!==0&&e.pointerType!=='touch')return;
+    e.preventDefault();
+    handlePointerDown(e.clientX,e.clientY,e.pointerType==='touch'?'touch':'mouse');
+  });
+  window.addEventListener('pointermove',e=>{
+    handlePointerMove(e.clientX,e.clientY);
+  });
+  window.addEventListener('pointerup',e=>{
+    handlePointerUp(e.clientX,e.clientY,e.pointerType==='touch'?'touch':'mouse');
+  });
+}else{
+  canvas.addEventListener('mousedown',e=>{if(e.button===0)handlePointerDown(e.clientX,e.clientY,'mouse')});
+  window.addEventListener('mousemove',e=>handlePointerMove(e.clientX,e.clientY));
+  window.addEventListener('mouseup',e=>handlePointerUp(e.clientX,e.clientY,'mouse'));
+  canvas.addEventListener('touchstart',e=>{if(e.touches.length===1){e.preventDefault();handlePointerDown(e.touches[0].clientX,e.touches[0].clientY,'touch')}},{passive:false});
+  canvas.addEventListener('touchmove',e=>{e.preventDefault();if(e.touches.length===1)handlePointerMove(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
+  canvas.addEventListener('touchend',e=>{const t=e.changedTouches[0];handlePointerUp(t.clientX,t.clientY,'touch')});
+}
+
 canvas.addEventListener('wheel',e=>{
   if(selectedCategory&&selectedCategory.blocks.length){
     const listH=4*(BTN_H+GAP)-GAP;
@@ -349,13 +403,6 @@ canvas.addEventListener('wheel',e=>{
     blockScroll=Math.min(blockScroll,maxScroll);
   }
 },{passive:true});
-
-canvas.addEventListener('mousedown',e=>{if(e.button===0)handlePointerDown(e.clientX,e.clientY)});
-window.addEventListener('mousemove',e=>handlePointerMove(e.clientX,e.clientY));
-window.addEventListener('mouseup',e=>handlePointerUp(e.clientX,e.clientY));
-canvas.addEventListener('touchstart',e=>{if(e.touches.length===1)handlePointerDown(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
-canvas.addEventListener('touchmove',e=>{e.preventDefault();if(e.touches.length===1)handlePointerMove(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
-canvas.addEventListener('touchend',e=>{const t=e.changedTouches[0];handlePointerUp(t.clientX,t.clientY)});
 
 function spawnShip(){ship.x=core.x+.5;ship.y=core.y-2.5;ship.vx=0;ship.vy=0;ship.angle=-Math.PI/2;camera.x=ship.x*TILE-VIEW_W/2;camera.y=ship.y*TILE-VIEW_H/2;camera.targetX=camera.x;camera.targetY=camera.y}
 
@@ -432,47 +479,45 @@ function drawDirArrow(cx,cy,d,alpha){
 
 function drawBuildMenu(){
   const L=getMenuLayout();
-  // Single mode toggle button
   const isDel=buildMode==='delete';
-  ctx.fillStyle=isDel?'rgba(255,60,60,.55)':'rgba(255,140,0,.4)';
+  // Mode button — clearly shows current mode
+  ctx.fillStyle=isDel?'rgba(255,50,50,.65)':'rgba(255,140,0,.5)';
   ctx.fillRect(L.modeX,L.modeY,BTN_W,BTN_H);
-  ctx.strokeStyle=isDel?'#f66':'#ff8c00';ctx.strokeRect(L.modeX,L.modeY,BTN_W,BTN_H);
-  ctx.fillStyle='#fff';ctx.font='16px system-ui';ctx.textAlign='center';
-  ctx.fillText(isDel?'🗑':'🔨',L.modeX+BTN_W/2,L.modeY+24);
+  ctx.strokeStyle=isDel?'#ff4444':'#ff8c00';ctx.lineWidth=2;ctx.strokeRect(L.modeX,L.modeY,BTN_W,BTN_H);
+  ctx.fillStyle='#fff';ctx.font='18px system-ui';ctx.textAlign='center';
+  ctx.fillText(isDel?'🗑':'🔨',L.modeX+BTN_W/2,L.modeY+26);
 
   let leftX=L.modeX-BTN_W-GAP;
-  // Confirm
   if(hasPending()){
-    ctx.fillStyle=isDel?'rgba(180,40,40,.9)':'rgba(40,120,40,.9)';
+    ctx.fillStyle=isDel?'rgba(180,30,30,.95)':'rgba(30,140,30,.95)';
     ctx.fillRect(leftX,L.modeY,BTN_W,BTN_H);
     ctx.strokeStyle=isDel?'#f66':'#6f6';ctx.strokeRect(leftX,L.modeY,BTN_W,BTN_H);
-    ctx.fillStyle='#fff';ctx.font='20px system-ui';ctx.fillText('✓',leftX+BTN_W/2,L.modeY+25);
+    ctx.fillStyle='#fff';ctx.font='22px system-ui';ctx.fillText('✓',leftX+BTN_W/2,L.modeY+28);
     leftX-=BTN_W+GAP;
   }
-  // Rotate
   if(buildMode==='place'&&selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional){
-    ctx.fillStyle='rgba(60,60,80,.9)';ctx.fillRect(leftX,L.modeY,BTN_W,BTN_H);
+    ctx.fillStyle='rgba(50,50,80,.95)';ctx.fillRect(leftX,L.modeY,BTN_W,BTN_H);
     ctx.strokeStyle='#8af';ctx.strokeRect(leftX,L.modeY,BTN_W,BTN_H);
-    ctx.fillStyle='#fff';ctx.font='20px system-ui';ctx.fillText(DIR_ARROW[selectedDir],leftX+BTN_W/2,L.modeY+25);
+    ctx.fillStyle='#fff';ctx.font='22px system-ui';ctx.fillText(DIR_ARROW[selectedDir],leftX+BTN_W/2,L.modeY+28);
   }
 
   for(const cat of CATEGORIES){
     const col=cat.side==='left'?0:1;
-    const bx=VIEW_W-12-(2-col)*(BTN_W+GAP);
+    const bx=VIEW_W-14-(2-col)*(BTN_W+GAP);
     const by=L.catStartY-cat.row*(BTN_H+GAP);
     const active=selectedCategory===cat;
-    ctx.fillStyle=active?'rgba(255,140,0,.35)':'rgba(30,30,35,.9)';
-    ctx.fillRect(bx,by,BTN_W,BTN_H);ctx.strokeStyle=active?'#ff8c00':'#555';ctx.strokeRect(bx,by,BTN_W,BTN_H);
-    ctx.fillStyle=active?'#ffcc66':'#aaa';ctx.font='9px system-ui';ctx.textAlign='center';ctx.fillText(cat.name.slice(0,6),bx+BTN_W/2,by+22);
+    ctx.fillStyle=active?'rgba(255,140,0,.4)':'rgba(30,30,35,.92)';
+    ctx.fillRect(bx,by,BTN_W,BTN_H);ctx.strokeStyle=active?'#ff8c00':'#555';ctx.lineWidth=1;ctx.strokeRect(bx,by,BTN_W,BTN_H);
+    ctx.fillStyle=active?'#ffcc66':'#aaa';ctx.font='9px system-ui';ctx.textAlign='center';ctx.fillText(cat.name.slice(0,6),bx+BTN_W/2,by+24);
   }
 
   if(selectedCategory){
     const blocks=selectedCategory.blocks;
     const listW=3*(BTN_W+GAP)-GAP;
-    const listX=VIEW_W-12-2*(BTN_W+GAP)-8-listW;
+    const listX=VIEW_W-14-2*(BTN_W+GAP)-10-listW;
     const listY=L.catStartY-3*(BTN_H+GAP);
     const listH=4*(BTN_H+GAP)-GAP;
-    ctx.fillStyle='rgba(20,20,28,.92)';ctx.fillRect(listX-4,listY-4,listW+8,listH+8);
+    ctx.fillStyle='rgba(20,20,28,.94)';ctx.fillRect(listX-4,listY-4,listW+8,listH+8);
     ctx.strokeStyle='#444';ctx.strokeRect(listX-4,listY-4,listW+8,listH+8);
     if(blocks.length===0){
       ctx.fillStyle='#666';ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillText('пусто',listX+listW/2,listY+listH/2);
@@ -484,15 +529,15 @@ function drawBuildMenu(){
         const by=listY+row*(BTN_H+GAP)-blockScroll;
         if(by+BTN_H<listY||by>listY+listH)return;
         const def=BUILDING_DEFS[bt];const active=selectedBlock===bt;
-        ctx.fillStyle=active?'rgba(100,180,255,.45)':'rgba(30,30,38,.95)';
+        ctx.fillStyle=active?'rgba(100,180,255,.5)':'rgba(30,30,38,.95)';
         ctx.fillRect(bx,by,BTN_W,BTN_H);ctx.strokeStyle=active?'#6ab0ff':'#555';ctx.strokeRect(bx,by,BTN_W,BTN_H);
-        ctx.fillStyle=def.color;ctx.fillRect(bx+6,by+4,BTN_W-12,12);
-        ctx.fillStyle='#ccc';ctx.font='8px system-ui';ctx.textAlign='center';ctx.fillText(def.name.slice(0,7),bx+BTN_W/2,by+28);
+        ctx.fillStyle=def.color;ctx.fillRect(bx+6,by+5,BTN_W-12,12);
+        ctx.fillStyle='#ccc';ctx.font='8px system-ui';ctx.textAlign='center';ctx.fillText(def.name.slice(0,7),bx+BTN_W/2,by+30);
       });
       ctx.restore();
     }
   }
-  ctx.textAlign='left';
+  ctx.textAlign='left';ctx.lineWidth=1;
 }
 
 function drawCoreInv(){
@@ -529,7 +574,7 @@ function draw(){
       if(type===BLOCK.WATER){ctx.fillStyle='rgba(255,255,255,.07)';ctx.fillRect(sx+3,sy+3,4,4)}
       if(type===BLOCK.WALL){ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.strokeRect(sx+.5,sy+.5,TILE-1,TILE-1)}
     }
-    if(ore!==ORE.NONE){ctx.fillStyle=ORE_COLORS[ore];ctx.globalAlpha=.85;ctx.fillRect(sx+1,sy+1,TILE-2,TILE-2);ctx.globalAlpha=1;ctx.fillStyle='rgba(255,255,255,.2)';ctx.beginPath();ctx.moveTo(sx+3,sy+3);ctx.lineTo(sx+TILE-5,sy+4);ctx.lineTo(sx+4,sy+TILE-6);ctx.closePath();ctx.fill()}
+    if(ore!==ORE.NONE){ctx.fillStyle=ORE_COLORS[ore];ctx.globalAlpha=.85;ctx.fillRect(sx+1,sy+1,TILE-2,TILE-2);ctx.globalAlpha=1}
 
     const b=buildMap[y][x];
     if(b&&b.type!=='part'){
@@ -537,30 +582,23 @@ function draw(){
       if(def){
         ctx.fillStyle=def.color;ctx.globalAlpha=.9;ctx.fillRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);ctx.globalAlpha=1;
         if(def.directional)drawDirArrow(sx+TILE*def.size/2,sy+TILE*def.size/2,b.dir??0);
-        // Red outline if selected for delete
         const key=x+','+y;
         if(deleteSel.has(key)){
-          ctx.strokeStyle='#ff3333';ctx.lineWidth=2.5;ctx.strokeRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);
+          ctx.strokeStyle='#ff2222';ctx.lineWidth=3;ctx.strokeRect(sx+0.5,sy+0.5,TILE*def.size-1,TILE*def.size-1);
+          ctx.fillStyle='rgba(255,40,40,.25)';ctx.fillRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);
         }
       }
     }else if(b&&b.type==='part'){
-      // also outline parts of selected buildings
       const key=b.parentX+','+b.parentY;
       if(deleteSel.has(key)){
-        const main=buildMap[b.parentY][b.parentX];
-        const def=main&&BUILDING_DEFS[main.type];
-        if(def&&b.parentX===x&&b.parentY===y){/* drawn on main */}
-        else{
-          ctx.strokeStyle='#ff3333';ctx.lineWidth=2;ctx.strokeRect(sx+1,sy+1,TILE-2,TILE-2);
-        }
+        ctx.strokeStyle='#ff2222';ctx.lineWidth=2;ctx.strokeRect(sx+1,sy+1,TILE-2,TILE-2);
+        ctx.fillStyle='rgba(255,40,40,.2)';ctx.fillRect(sx+1,sy+1,TILE-2,TILE-2);
       }
     }
   }
 
-  // Ghosts (all stay until confirm)
   for(const g of ghosts){
-    const def=BUILDING_DEFS[g.type];
-    if(!def)continue;
+    const def=BUILDING_DEFS[g.type];if(!def)continue;
     const sx=g.x*TILE-camera.x,sy=g.y*TILE-camera.y;
     ctx.fillStyle=def.color;ctx.globalAlpha=.4;ctx.fillRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);ctx.globalAlpha=1;
     ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.strokeRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);ctx.setLineDash([]);
@@ -598,12 +636,18 @@ function draw(){
   drawCoreInv();
   drawBuildMenu();
 
-  // Status hint
+  // Mode indicator top
+  ctx.fillStyle=buildMode==='delete'?'rgba(180,30,30,.75)':'rgba(40,40,20,.6)';
+  ctx.fillRect(VIEW_W/2-70,8,140,22);
+  ctx.fillStyle=buildMode==='delete'?'#faa':'#fc6';ctx.font='bold 12px system-ui';ctx.textAlign='center';
+  ctx.fillText(buildMode==='delete'?'РЕЖИМ: СНОС':'РЕЖИМ: СТРОЙКА',VIEW_W/2,23);
+  ctx.textAlign='left';
+
   if(ghosts.length||deleteSel.size){
-    ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(VIEW_W/2-100,10,200,20);
+    ctx.fillStyle='rgba(0,0,0,.65)';ctx.fillRect(VIEW_W/2-110,34,220,20);
     ctx.fillStyle=buildMode==='delete'?'#f88':'#8f8';ctx.font='11px system-ui';ctx.textAlign='center';
     const n=buildMode==='delete'?deleteSel.size:ghosts.length;
-    ctx.fillText((buildMode==='delete'?'К удалению: ':'Призраков: ')+n+' · ✓ подтвердить',VIEW_W/2,24);
+    ctx.fillText((buildMode==='delete'?'Выбрано к сносу: ':'Призраков: ')+n+' → нажми ✓',VIEW_W/2,48);
     ctx.textAlign='left';
   }
 }
