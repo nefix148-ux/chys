@@ -159,12 +159,12 @@ const ship = {
     angle: -Math.PI / 2,
     vx: 0,
     vy: 0,
-    maxSpeed: 4.2,
-    accel: 0.25,
-    friction: 0.93,
+    maxSpeed: 2.4,
+    accel: 0.12,
+    friction: 0.95,
     size: 13,
     // Сила притяжения к центру экрана
-    homeForce: 0.05
+    homeForce: 0.035
 };
 
 // === КАМЕРА (свободная) ===
@@ -300,7 +300,7 @@ function update(dt) {
     const distToCenter = Math.sqrt(toCenterX*toCenterX + toCenterY*toCenterY);
 
     if (distToCenter > 0.8) {
-        const force = Math.min(distToCenter * ship.homeForce, 0.2);
+        const force = Math.min(distToCenter * ship.homeForce, 0.12);
         ship.vx += (toCenterX / distToCenter) * force;
         ship.vy += (toCenterY / distToCenter) * force;
     }
@@ -325,13 +325,13 @@ function update(dt) {
     ship.y = Math.max(0.5, Math.min(MAP_SIZE - 0.5, ship.y));
 
     // === КОРАБЛЬ ВСЕГДА СМОТРИТ В СТОРОНУ ДВИЖЕНИЯ ===
-    if (speed > 0.15) {
+    if (speed > 0.12) {
         const targetAngle = Math.atan2(ship.vy, ship.vx);
         let diff = targetAngle - ship.angle;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
         // Плавный, но быстрый поворот в сторону скорости
-        ship.angle += diff * 0.22;
+        ship.angle += diff * 0.2;
     }
 
     // Камера плавно следует за target
@@ -420,12 +420,12 @@ function draw() {
 
     // Двигатель (когда летит)
     const spd = Math.sqrt(ship.vx*ship.vx + ship.vy*ship.vy);
-    if (spd > 0.35) {
+    if (spd > 0.25) {
         ctx.fillStyle = '#ff4400';
         ctx.globalAlpha = 0.55 + Math.random() * 0.4;
         ctx.beginPath();
         ctx.moveTo(-ship.size * 0.55, -3.5);
-        ctx.lineTo(-ship.size * 0.55 - 7 - Math.random()*5, 0);
+        ctx.lineTo(-ship.size * 0.55 - 6 - Math.random()*4, 0);
         ctx.lineTo(-ship.size * 0.55, 3.5);
         ctx.closePath();
         ctx.fill();
