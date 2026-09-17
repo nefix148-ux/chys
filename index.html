@@ -96,7 +96,7 @@ window.addEventListener('resize', resize);
 resize();
 
 // === НАСТРОЙКИ ===
-const MAP_SIZE = 100;
+const MAP_SIZE = 160;          // было 100 → стало 160
 const TILE = 16;
 
 const BLOCK = { WALL: 0, DIRT: 1, FERTILE: 2, WATER: 3 };
@@ -125,15 +125,6 @@ const ORE_COLORS = {
     [ORE.TITANIUM]: '#8da1b0',
     [ORE.THORIUM]:  '#f9a3c7',
     [ORE.METALOM]:  '#6e6e6e'
-};
-
-const ORE_TO_RESOURCE = {
-    [ORE.COPPER]:   'copper',
-    [ORE.LEAD]:     'lead',
-    [ORE.COAL]:     'coal',
-    [ORE.TITANIUM]: 'titanium',
-    [ORE.THORIUM]:  'thorium',
-    [ORE.METALOM]:  'metalom'
 };
 
 // === ИНВЕНТАРЬ ===
@@ -170,7 +161,7 @@ let showInventory = true;
 
 // === КАРТА ===
 let map = [];
-let oreMap = [];   // слой руд поверх террейна
+let oreMap = [];
 
 function generateMap() {
     map = [];
@@ -189,53 +180,53 @@ function generateMap() {
         map[0][i] = map[MAP_SIZE-1][i] = map[i][0] = map[i][MAP_SIZE-1] = BLOCK.WALL;
     }
 
-    // Озёра
-    const lakeCount = 6 + Math.floor(Math.random() * 5);
+    // Озёра (больше на большой карте)
+    const lakeCount = 10 + Math.floor(Math.random() * 8);
     for (let l = 0; l < lakeCount; l++) {
-        const cx = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
-        const cy = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
-        const radius = 4 + Math.floor(Math.random() * 9);
+        const cx = 10 + Math.floor(Math.random() * (MAP_SIZE - 20));
+        const cy = 10 + Math.floor(Math.random() * (MAP_SIZE - 20));
+        const radius = 5 + Math.floor(Math.random() * 11);
         for (let y = cy - radius; y <= cy + radius; y++) {
             for (let x = cx - radius; x <= cx + radius; x++) {
                 if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
                 const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
-                if (dist < radius - Math.random() * 2.5) map[y][x] = BLOCK.WATER;
+                if (dist < radius - Math.random() * 2.8) map[y][x] = BLOCK.WATER;
             }
         }
     }
 
     // Плодородная земля
-    const fertileCount = 8 + Math.floor(Math.random() * 6);
+    const fertileCount = 14 + Math.floor(Math.random() * 10);
     for (let f = 0; f < fertileCount; f++) {
-        const cx = 6 + Math.floor(Math.random() * (MAP_SIZE - 12));
-        const cy = 6 + Math.floor(Math.random() * (MAP_SIZE - 12));
-        const radius = 5 + Math.floor(Math.random() * 10);
+        const cx = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
+        const cy = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
+        const radius = 6 + Math.floor(Math.random() * 12);
         for (let y = cy - radius; y <= cy + radius; y++) {
             for (let x = cx - radius; x <= cx + radius; x++) {
                 if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
                 if (map[y][x] === BLOCK.WATER) continue;
                 const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
-                if (dist < radius - Math.random() * 3) map[y][x] = BLOCK.FERTILE;
+                if (dist < radius - Math.random() * 3.5) map[y][x] = BLOCK.FERTILE;
             }
         }
     }
 
     // Стены / скалы
-    const wallCount = 10 + Math.floor(Math.random() * 8);
+    const wallCount = 16 + Math.floor(Math.random() * 12);
     for (let w = 0; w < wallCount; w++) {
-        const cx = 5 + Math.floor(Math.random() * (MAP_SIZE - 10));
-        const cy = 5 + Math.floor(Math.random() * (MAP_SIZE - 10));
-        const radius = 2 + Math.floor(Math.random() * 5);
+        const cx = 6 + Math.floor(Math.random() * (MAP_SIZE - 12));
+        const cy = 6 + Math.floor(Math.random() * (MAP_SIZE - 12));
+        const radius = 2 + Math.floor(Math.random() * 6);
         for (let y = cy - radius; y <= cy + radius; y++) {
             for (let x = cx - radius; x <= cx + radius; x++) {
                 if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
                 const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
-                if (dist < radius - Math.random() * 1.8) map[y][x] = BLOCK.WALL;
+                if (dist < radius - Math.random() * 2) map[y][x] = BLOCK.WALL;
             }
         }
     }
 
-    // Сглаживание террейна
+    // Сглаживание
     for (let pass = 0; pass < 3; pass++) {
         const newMap = map.map(row => row.slice());
         for (let y = 1; y < MAP_SIZE - 1; y++) {
@@ -259,41 +250,82 @@ function generateMap() {
         map = newMap;
     }
 
-    // Границы снова стены
+    // Границы снова
     for (let i = 0; i < MAP_SIZE; i++) {
         map[0][i] = map[MAP_SIZE-1][i] = map[i][0] = map[i][MAP_SIZE-1] = BLOCK.WALL;
     }
 
-    // === ГЕНЕРАЦИЯ КЛАСТЕРОВ РУД ===
-    // Руды могут появляться только на DIRT и FERTILE
+    // === ГЕНЕРАЦИЯ РУД БЕЗ ПЕРЕСЕЧЕНИЙ ===
     const oreTypes = [
-        { type: ORE.COPPER,   count: 7,  minR: 2, maxR: 5 },
-        { type: ORE.LEAD,     count: 6,  minR: 2, maxR: 5 },
-        { type: ORE.COAL,     count: 8,  minR: 2, maxR: 6 },
-        { type: ORE.TITANIUM, count: 4,  minR: 2, maxR: 4 },
-        { type: ORE.THORIUM,  count: 3,  minR: 2, maxR: 4 },
-        { type: ORE.METALOM,  count: 5,  minR: 2, maxR: 4 }
+        { type: ORE.COPPER,   count: 12, minR: 3, maxR: 6 },
+        { type: ORE.LEAD,     count: 10, minR: 3, maxR: 6 },
+        { type: ORE.COAL,     count: 14, minR: 3, maxR: 7 },
+        { type: ORE.TITANIUM, count: 7,  minR: 2, maxR: 5 },
+        { type: ORE.THORIUM,  count: 5,  minR: 2, maxR: 4 },
+        { type: ORE.METALOM,  count: 8,  minR: 2, maxR: 5 }
     ];
 
+    // Список уже занятых центров кластеров (чтобы не ставить рядом)
+    const placedCenters = [];
+
     for (const ore of oreTypes) {
-        for (let c = 0; c < ore.count; c++) {
-            const cx = 5 + Math.floor(Math.random() * (MAP_SIZE - 10));
-            const cy = 5 + Math.floor(Math.random() * (MAP_SIZE - 10));
+        let placed = 0;
+        let attempts = 0;
+        const maxAttempts = ore.count * 25;
+
+        while (placed < ore.count && attempts < maxAttempts) {
+            attempts++;
+
+            const cx = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
+            const cy = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
             const radius = ore.minR + Math.floor(Math.random() * (ore.maxR - ore.minR + 1));
 
+            // Проверяем, не слишком ли близко к уже существующим кластерам
+            let tooClose = false;
+            for (const prev of placedCenters) {
+                const d = Math.sqrt((cx - prev.x)**2 + (cy - prev.y)**2);
+                if (d < radius + prev.r + 3) {  // минимальный зазор 3 клетки
+                    tooClose = true;
+                    break;
+                }
+            }
+            if (tooClose) continue;
+
+            // Проверяем, что зона в основном свободна от руд и подходит по террейну
+            let freeCells = 0;
+            let totalChecked = 0;
             for (let y = cy - radius; y <= cy + radius; y++) {
                 for (let x = cx - radius; x <= cx + radius; x++) {
                     if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
-                    // Только на земле или плодородной
+                    const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
+                    if (dist > radius) continue;
+                    totalChecked++;
+                    if (oreMap[y][x] === ORE.NONE &&
+                        (map[y][x] === BLOCK.DIRT || map[y][x] === BLOCK.FERTILE)) {
+                        freeCells++;
+                    }
+                }
+            }
+
+            // Если меньше 60% клеток свободны — пропускаем
+            if (totalChecked === 0 || freeCells / totalChecked < 0.6) continue;
+
+            // Ставим кластер
+            for (let y = cy - radius; y <= cy + radius; y++) {
+                for (let x = cx - radius; x <= cx + radius; x++) {
+                    if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
                     if (map[y][x] !== BLOCK.DIRT && map[y][x] !== BLOCK.FERTILE) continue;
-                    if (oreMap[y][x] !== ORE.NONE) continue; // уже есть руда
+                    if (oreMap[y][x] !== ORE.NONE) continue;
 
                     const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
-                    if (dist < radius - Math.random() * 1.6) {
+                    if (dist < radius - Math.random() * 1.8) {
                         oreMap[y][x] = ore.type;
                     }
                 }
             }
+
+            placedCenters.push({ x: cx, y: cy, r: radius });
+            placed++;
         }
     }
 }
@@ -364,9 +396,9 @@ document.getElementById('inv-toggle').addEventListener('touchend', e => { e.prev
 
 // === СПАВН ===
 function spawnShip() {
-    for (let i = 0; i < 300; i++) {
-        const tx = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*40);
-        const ty = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*40);
+    for (let i = 0; i < 400; i++) {
+        const tx = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*50);
+        const ty = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*50);
         if (map[ty] && (map[ty][tx] === BLOCK.DIRT || map[ty][tx] === BLOCK.FERTILE)) {
             ship.x = tx + 0.5; ship.y = ty + 0.5;
             ship.vx = 0; ship.vy = 0; ship.angle = -Math.PI/2;
@@ -550,11 +582,9 @@ function draw() {
             const sx = x * TILE - camera.x;
             const sy = y * TILE - camera.y;
 
-            // Базовый террейн
             ctx.fillStyle = COLORS[type];
             ctx.fillRect(sx, sy, TILE + 0.5, TILE + 0.5);
 
-            // Детали террейна
             if (type === BLOCK.DIRT || type === BLOCK.FERTILE) {
                 ctx.fillStyle = type === BLOCK.FERTILE ? 'rgba(80,120,40,0.2)' : 'rgba(0,0,0,0.12)';
                 ctx.fillRect(sx + 2, sy + 2, TILE - 4, TILE - 4);
@@ -569,16 +599,14 @@ function draw() {
                 ctx.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
             }
 
-            // === РУДА поверх ===
+            // Руда
             if (ore !== ORE.NONE) {
                 const oc = ORE_COLORS[ore];
-                // Основной цвет руды
                 ctx.fillStyle = oc;
                 ctx.globalAlpha = 0.85;
                 ctx.fillRect(sx + 1, sy + 1, TILE - 2, TILE - 2);
                 ctx.globalAlpha = 1;
 
-                // Блики / кристаллическая структура
                 ctx.fillStyle = 'rgba(255,255,255,0.22)';
                 ctx.beginPath();
                 ctx.moveTo(sx + 3, sy + 3);
@@ -587,7 +615,6 @@ function draw() {
                 ctx.closePath();
                 ctx.fill();
 
-                // Тёмные края
                 ctx.strokeStyle = 'rgba(0,0,0,0.35)';
                 ctx.lineWidth = 1;
                 ctx.strokeRect(sx + 1.5, sy + 1.5, TILE - 3, TILE - 3);
@@ -639,7 +666,7 @@ function draw() {
     ctx.restore();
 
     // Мини-карта
-    const miniSize = Math.min(100, VIEW_W * 0.2);
+    const miniSize = Math.min(110, VIEW_W * 0.22);
     const miniScale = miniSize / MAP_SIZE;
     const mx = VIEW_W - miniSize - 10;
     const my = 60;
@@ -649,12 +676,12 @@ function draw() {
     ctx.strokeStyle = '#555';
     ctx.strokeRect(mx, my, miniSize, miniSize);
 
-    for (let y = 0; y < MAP_SIZE; y += 2) {
-        for (let x = 0; x < MAP_SIZE; x += 2) {
+    for (let y = 0; y < MAP_SIZE; y += 3) {
+        for (let x = 0; x < MAP_SIZE; x += 3) {
             let col = COLORS[map[y][x]];
             if (oreMap[y][x] !== ORE.NONE) col = ORE_COLORS[oreMap[y][x]];
             ctx.fillStyle = col;
-            ctx.fillRect(mx + x*miniScale, my + y*miniScale, miniScale*2+0.5, miniScale*2+0.5);
+            ctx.fillRect(mx + x*miniScale, my + y*miniScale, miniScale*3+0.5, miniScale*3+0.5);
         }
     }
     ctx.fillStyle = '#ff8c00';
