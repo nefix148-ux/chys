@@ -39,8 +39,8 @@
     <div id="ui">
         <h1>🚀 Космический набросок</h1>
         <div class="info">
-            Дабл-клик по руде — добыча · В радиусе 20 от ядра → в ядро<br>
-            Дальше → в корабль (макс 30, 1 тип) · Титан/Торий только ядром
+            Дабл-клик по руде — добыча (бесконечная) · В радиусе 20 → в ядро<br>
+            Дальше → в корабль (макс 30, 1 тип) · Титан и Торий руками нельзя
         </div>
     </div>
 
@@ -69,8 +69,8 @@ resize();
 // === КОНСТАНТЫ ===
 const MAP_SIZE = 160;
 const TILE = 16;
-const CORE_RANGE = 20;          // радиус добычи в ядро
-const PLAYER_MAX = 30;          // максимум в корабле
+const CORE_RANGE = 20;
+const PLAYER_MAX = 30;
 
 const BLOCK = { WALL: 0, DIRT: 1, FERTILE: 2, WATER: 3, CORE: 4 };
 const COLORS = {
@@ -100,7 +100,7 @@ const ORE_TO_ID = {
     [ORE.TITANIUM]: 'titanium', [ORE.THORIUM]: 'thorium', [ORE.METALOM]: 'metalom'
 };
 
-// Ресурсы, которые игрок НЕ может добывать
+// Эти руды руками добывать нельзя совсем
 const PLAYER_FORBIDDEN = new Set([ORE.TITANIUM, ORE.THORIUM]);
 
 // === ИНВЕНТАРИ ===
@@ -123,20 +123,14 @@ const RESOURCES = [
     { id: 'pyratite',   name: 'Пиротит',           color: '#ff3c00', icon: 'powder' }
 ];
 
-// Инвентарь ЯДРА (общий склад)
 const coreInventory = {};
 RESOURCES.forEach(r => coreInventory[r.id] = 0);
 
-// Инвентарь КОРАБЛЯ (только 1 тип, макс 30)
-const shipCargo = {
-    type: null,   // id ресурса или null
-    amount: 0
-};
-
+const shipCargo = { type: null, amount: 0 };
 let showInventory = true;
 
 // === ЯДРО ===
-let core = { x: 0, y: 0 };  // центр 3x3
+let core = { x: 0, y: 0 };
 
 // === КАРТА ===
 let map = [];
@@ -154,7 +148,6 @@ function generateMap() {
         }
     }
 
-    // Границы
     for (let i = 0; i < MAP_SIZE; i++) {
         map[0][i] = map[MAP_SIZE-1][i] = map[i][0] = map[i][MAP_SIZE-1] = BLOCK.WALL;
     }
@@ -229,13 +222,11 @@ function generateMap() {
         map = newMap;
     }
 
-    // Границы
     for (let i = 0; i < MAP_SIZE; i++) {
         map[0][i] = map[MAP_SIZE-1][i] = map[i][0] = map[i][MAP_SIZE-1] = BLOCK.WALL;
     }
 
-    // === РАЗМЕЩЕНИЕ ЯДРА 3x3 ===
-    // Ищем чистое место около центра
+    // === ЯДРО 3x3 ===
     let corePlaced = false;
     for (let attempt = 0; attempt < 200; attempt++) {
         const cx = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*30);
@@ -250,8 +241,7 @@ function generateMap() {
             if (!ok) break;
         }
         if (ok) {
-            core.x = cx;
-            core.y = cy;
+            core.x = cx; core.y = cy;
             for (let dy = -1; dy <= 1; dy++)
                 for (let dx = -1; dx <= 1; dx++)
                     map[cy+dy][cx+dx] = BLOCK.CORE;
@@ -267,7 +257,7 @@ function generateMap() {
                 map[core.y+dy][core.x+dx] = BLOCK.CORE;
     }
 
-    // === РУДЫ (не пересекаются + не на ядре) ===
+    // === РУДЫ ===
     const oreTypes = [
         { type: ORE.COPPER,   count: 12, minR: 3, maxR: 6 },
         { type: ORE.LEAD,     count: 10, minR: 3, maxR: 6 },
@@ -288,7 +278,6 @@ function generateMap() {
             const cy = 10 + Math.floor(Math.random() * (MAP_SIZE - 20));
             const radius = ore.minR + Math.floor(Math.random() * (ore.maxR - ore.minR + 1));
 
-            // Не рядом с другими кластерами
             let tooClose = false;
             for (const prev of placedCenters) {
                 if (Math.sqrt((cx-prev.x)**2 + (cy-prev.y)**2) < radius + prev.r + 3) {
@@ -296,8 +285,6 @@ function generateMap() {
                 }
             }
             if (tooClose) continue;
-
-            // Не на ядре
             if (Math.abs(cx - core.x) < radius + 3 && Math.abs(cy - core.y) < radius + 3) continue;
 
             let free = 0, total = 0;
@@ -327,7 +314,6 @@ function generateMap() {
         }
     }
 
-    // Очистка инвентарей при новой карте
     RESOURCES.forEach(r => coreInventory[r.id] = 0);
     shipCargo.type = null;
     shipCargo.amount = 0;
@@ -335,8 +321,7 @@ function generateMap() {
 
 // === КОРАБЛЬ ===
 const ship = {
-    x: 0, y: 0,
-    angle: -Math.PI/2,
+    x: 0, y: 0, angle: -Math.PI/2,
     vx: 0, vy: 0,
     maxSpeed: 2.4, accel: 0.12, friction: 0.95,
     size: 13, homeForce: 0.035
@@ -356,13 +341,10 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 
-// Камера (свайп / drag)
 let isDraggingCamera = false;
 let lastTouchX = 0, lastTouchY = 0;
 let dragStartX = 0, dragStartY = 0;
 let didDrag = false;
-
-// Для перетаскивания груза в ядро
 let isDraggingCargo = false;
 
 function getTileFromScreen(sx, sy) {
@@ -376,39 +358,29 @@ function tryMine(tx, ty) {
     const ore = oreMap[ty][tx];
     if (ore === ORE.NONE) return;
 
-    // Расстояние до центра ядра
+    // Титан и Торий руками добывать нельзя НИКАК
+    if (PLAYER_FORBIDDEN.has(ore)) return;
+
     const dist = Math.sqrt((tx - core.x)**2 + (ty - core.y)**2);
     const inCoreRange = dist <= CORE_RANGE;
-
-    // Игрок не может добывать титан и торий
-    if (!inCoreRange && PLAYER_FORBIDDEN.has(ore)) {
-        // Можно показать сообщение, пока просто игнор
-        return;
-    }
 
     const resId = ORE_TO_ID[ore];
     if (!resId) return;
 
-    // Убираем руду с карты
-    oreMap[ty][tx] = ORE.NONE;
+    // Руда НЕ исчезает — бесконечная
 
     if (inCoreRange) {
-        // Сразу в ядро
         coreInventory[resId] = (coreInventory[resId] || 0) + 1;
     } else {
-        // В корабль
         if (shipCargo.type === null || shipCargo.type === resId) {
             if (shipCargo.amount < PLAYER_MAX) {
                 shipCargo.type = resId;
                 shipCargo.amount++;
             }
-            // если полный — просто теряем (или можно не убирать руду, но пока теряем)
         }
-        // если другой тип уже есть — не берём
     }
 }
 
-// Обработка кликов / тапов
 function handlePointerDown(clientX, clientY) {
     dragStartX = clientX;
     dragStartY = clientY;
@@ -416,7 +388,6 @@ function handlePointerDown(clientX, clientY) {
     lastTouchX = clientX;
     lastTouchY = clientY;
 
-    // Проверка: если кликнули по панели груза корабля рядом с ядром — начинаем drag
     if (shipCargo.amount > 0) {
         const panel = getShipCargoPanelRect();
         if (clientX >= panel.x && clientX <= panel.x+panel.w &&
@@ -425,7 +396,6 @@ function handlePointerDown(clientX, clientY) {
             return;
         }
     }
-
     isDraggingCamera = true;
 }
 
@@ -433,12 +403,9 @@ function handlePointerMove(clientX, clientY) {
     const dx = clientX - lastTouchX;
     const dy = clientY - lastTouchY;
 
-    if (Math.abs(clientX - dragStartX) > 6 || Math.abs(clientY - dragStartY) > 6) {
-        didDrag = true;
-    }
+    if (Math.abs(clientX - dragStartX) > 6 || Math.abs(clientY - dragStartY) > 6) didDrag = true;
 
     if (isDraggingCargo) {
-        // просто запоминаем позицию для отрисовки
         lastTouchX = clientX;
         lastTouchY = clientY;
         return;
@@ -454,11 +421,9 @@ function handlePointerMove(clientX, clientY) {
 
 function handlePointerUp(clientX, clientY) {
     if (isDraggingCargo) {
-        // Проверяем, отпустили ли над ядром
         const tile = getTileFromScreen(clientX, clientY);
         const distToCore = Math.sqrt((tile.x - core.x)**2 + (tile.y - core.y)**2);
-        if (distToCore <= 4 && shipCargo.amount > 0) {  // рядом с ядром
-            // Перекладываем всё в ядро
+        if (distToCore <= 4 && shipCargo.amount > 0) {
             coreInventory[shipCargo.type] = (coreInventory[shipCargo.type] || 0) + shipCargo.amount;
             shipCargo.type = null;
             shipCargo.amount = 0;
@@ -469,7 +434,6 @@ function handlePointerUp(clientX, clientY) {
 
     isDraggingCamera = false;
 
-    // Если не было драга — считаем кликом (для дабл-клика)
     if (!didDrag) {
         const now = performance.now();
         const tile = getTileFromScreen(clientX, clientY);
@@ -477,7 +441,6 @@ function handlePointerUp(clientX, clientY) {
         if (lastClickTile &&
             lastClickTile.x === tile.x && lastClickTile.y === tile.y &&
             now - lastClickTime < 350) {
-            // Дабл-клик!
             tryMine(tile.x, tile.y);
             lastClickTile = null;
         } else {
@@ -487,25 +450,17 @@ function handlePointerUp(clientX, clientY) {
     }
 }
 
-// Мышь
-canvas.addEventListener('mousedown', e => {
-    if (e.button === 0) handlePointerDown(e.clientX, e.clientY);
-});
+canvas.addEventListener('mousedown', e => { if (e.button === 0) handlePointerDown(e.clientX, e.clientY); });
 window.addEventListener('mousemove', e => handlePointerMove(e.clientX, e.clientY));
 window.addEventListener('mouseup', e => handlePointerUp(e.clientX, e.clientY));
 
-// Тач
 canvas.addEventListener('touchstart', e => {
-    if (e.touches.length === 1) {
-        handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
-    }
+    if (e.touches.length === 1) handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
 }, { passive: false });
 
 canvas.addEventListener('touchmove', e => {
     e.preventDefault();
-    if (e.touches.length === 1) {
-        handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
-    }
+    if (e.touches.length === 1) handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
 }, { passive: false });
 
 canvas.addEventListener('touchend', e => {
@@ -518,10 +473,9 @@ document.getElementById('regen-btn').addEventListener('touchend', e => { e.preve
 document.getElementById('inv-toggle').addEventListener('click', () => showInventory = !showInventory);
 document.getElementById('inv-toggle').addEventListener('touchend', e => { e.preventDefault(); showInventory = !showInventory; });
 
-// === СПАВН НАД ЯДРОМ ===
 function spawnShip() {
     ship.x = core.x + 0.5;
-    ship.y = core.y - 2.5;  // чуть выше ядра
+    ship.y = core.y - 2.5;
     ship.vx = 0; ship.vy = 0;
     ship.angle = -Math.PI/2;
     camera.x = ship.x * TILE - VIEW_W / 2;
@@ -530,7 +484,6 @@ function spawnShip() {
     camera.targetY = camera.y;
 }
 
-// === ФИЗИКА ===
 function update(dt) {
     let inputX = 0, inputY = 0;
     if (keys['KeyA'] || keys['ArrowLeft'])  inputX -= 1;
@@ -588,7 +541,6 @@ function update(dt) {
     camera.targetY = Math.max(0, Math.min(maxCamY, camera.targetY));
 }
 
-// === ОТРИСОВКА ===
 function drawIcon(x, y, size, type, color) {
     ctx.save();
     ctx.translate(x, y);
@@ -652,7 +604,6 @@ function drawIcon(x, y, size, type, color) {
 }
 
 function getShipCargoPanelRect() {
-    // Маленькая панель груза корабля внизу по центру
     const w = 140, h = 44;
     return { x: VIEW_W/2 - w/2, y: VIEW_H - 90, w, h };
 }
@@ -665,7 +616,6 @@ function drawInventory() {
     const padding = 8;
     const titleH = 24;
 
-    // === ЯДРО ===
     const coreItems = RESOURCES.filter(r => (coreInventory[r.id]||0) > 0);
     const coreH = titleH + Math.max(1, coreItems.length) * rowH + padding * 2;
     const px = 10, py = 65;
@@ -698,7 +648,6 @@ function drawInventory() {
         });
     }
 
-    // === КОРАБЛЬ (груз) ===
     const cargoY = py + coreH + 10;
     const cargoH = 70;
     ctx.fillStyle = 'rgba(25,15,10,0.9)';
@@ -742,14 +691,11 @@ function draw() {
             const sx = x * TILE - camera.x;
             const sy = y * TILE - camera.y;
 
-            // Террейн
             if (type === BLOCK.CORE) {
-                // Ядро рисуем красиво
                 ctx.fillStyle = '#1a1a2e';
                 ctx.fillRect(sx, sy, TILE+0.5, TILE+0.5);
                 ctx.fillStyle = '#3a3a5c';
                 ctx.fillRect(sx+2, sy+2, TILE-4, TILE-4);
-                // Центральная точка ядра
                 if (x === core.x && y === core.y) {
                     ctx.fillStyle = '#6ab0ff';
                     ctx.beginPath();
@@ -779,7 +725,6 @@ function draw() {
                 }
             }
 
-            // Руда
             if (ore !== ORE.NONE) {
                 const oc = ORE_COLORS[ore];
                 ctx.fillStyle = oc;
@@ -863,22 +808,18 @@ function draw() {
             ctx.fillRect(mx + x*miniScale, my + y*miniScale, miniScale*3+0.5, miniScale*3+0.5);
         }
     }
-    // Корабль на миникарте
     ctx.fillStyle = '#ff8c00';
     ctx.beginPath();
     ctx.arc(mx + ship.x*miniScale, my + ship.y*miniScale, 3, 0, Math.PI*2);
     ctx.fill();
 
-    // Рамка видимой области
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
     ctx.lineWidth = 1;
     ctx.strokeRect(mx+(camera.x/TILE)*miniScale, my+(camera.y/TILE)*miniScale,
                    (VIEW_W/TILE)*miniScale, (VIEW_H/TILE)*miniScale);
 
-    // Инвентарь
     drawInventory();
 
-    // Панель груза корабля внизу (для перетаскивания)
     if (shipCargo.amount > 0) {
         const panel = getShipCargoPanelRect();
         ctx.fillStyle = 'rgba(30,20,10,0.85)';
@@ -897,13 +838,11 @@ function draw() {
             ctx.fillText(shipCargo.amount + '/' + PLAYER_MAX, panel.x + 42, panel.y + 34);
         }
 
-        // Подсказка
         ctx.fillStyle = '#888';
         ctx.font = '10px system-ui';
         ctx.fillText('Перетащи на ядро', panel.x + 8, panel.y + panel.h - 4);
     }
 
-    // Если тащим груз — рисуем иконку у курсора
     if (isDraggingCargo && shipCargo.amount > 0) {
         const res = RESOURCES.find(r => r.id === shipCargo.type);
         if (res) {
@@ -915,7 +854,6 @@ function draw() {
     }
 }
 
-// === ЦИКЛ ===
 let lastTime = performance.now();
 function loop(now) {
     const dt = Math.min(0.033, (now - lastTime)/1000);
