@@ -2,86 +2,156 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Космический набросок — 100x100</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Космический набросок</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: #111;
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+        html, body {
+            width: 100%;
+            height: 100%;
+            background: #0a0a0a;
             color: #eee;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
+            font-family: system-ui, -apple-system, sans-serif;
             overflow: hidden;
+            position: fixed;
+        }
+        #ui {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            z-index: 10;
+            pointer-events: none;
+            padding: 12px 16px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
         }
         h1 {
-            font-size: 1.4rem;
-            margin-bottom: 8px;
-            color: #f90;
-            text-shadow: 0 0 10px #f90;
+            font-size: 1.1rem;
+            color: #ff8c00;
+            text-shadow: 0 0 12px rgba(255,140,0,0.6);
+            margin-bottom: 4px;
         }
         .info {
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             color: #aaa;
-            margin-bottom: 12px;
-            text-align: center;
-            max-width: 600px;
+            line-height: 1.3;
         }
         canvas {
-            border: 2px solid #444;
+            display: block;
+            width: 100%;
+            height: 100%;
             background: #0a0a0a;
-            box-shadow: 0 0 30px rgba(255, 140, 0, 0.15);
-            image-rendering: pixelated;
         }
-        .controls {
-            margin-top: 12px;
-            font-size: 0.8rem;
-            color: #888;
+        #controls-hint {
+            position: absolute;
+            bottom: 16px;
+            left: 0; right: 0;
             text-align: center;
+            font-size: 0.7rem;
+            color: #666;
+            pointer-events: none;
+            z-index: 10;
         }
-        kbd {
-            background: #333;
-            padding: 2px 6px;
-            border-radius: 4px;
-            border: 1px solid #555;
-            font-family: monospace;
+        /* Виртуальный джойстик */
+        #joystick-zone {
+            position: absolute;
+            bottom: 30px;
+            left: 20px;
+            width: 120px;
+            height: 120px;
+            z-index: 20;
+            pointer-events: auto;
+        }
+        #joystick-base {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.08);
+            border: 2px solid rgba(255,140,0,0.3);
+            position: relative;
+        }
+        #joystick-knob {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255,140,0,0.7);
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 15px rgba(255,140,0,0.5);
+        }
+        #regen-btn {
+            position: absolute;
+            bottom: 40px;
+            right: 20px;
+            z-index: 20;
+            background: rgba(255,140,0,0.2);
+            border: 1px solid #ff8c00;
+            color: #ff8c00;
+            padding: 12px 18px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            pointer-events: auto;
+            user-select: none;
+        }
+        #regen-btn:active {
+            background: rgba(255,140,0,0.4);
+        }
+        @media (min-width: 700px) {
+            #joystick-zone { display: none; }
+            #controls-hint { display: block; }
+        }
+        @media (max-width: 699px) {
+            #controls-hint { display: none; }
+            h1 { font-size: 1rem; }
+            .info { font-size: 0.7rem; }
         }
     </style>
 </head>
 <body>
-    <h1>🚀 Космический набросок</h1>
-    <div class="info">
-        Карта 100×100 · 4 природных блока · Корабль в серо-оранжевых тонах<br>
-        Камера следует за кораблём и держит его в центре экрана
+    <div id="ui">
+        <h1>🚀 Космический набросок</h1>
+        <div class="info">
+            Свайп — двигай камеру · Корабль сам летит к центру экрана<br>
+            Джойстик / WASD — управление
+        </div>
     </div>
-    <canvas id="game" width="800" height="600"></canvas>
-    <div class="controls">
-        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> или стрелки — движение · 
-        <kbd>Пробел</kbd> — перегенерить карту · 
-        Мышью можно чуть сдвинуть камеру (зажать ЛКМ)
+
+    <canvas id="game"></canvas>
+
+    <div id="joystick-zone">
+        <div id="joystick-base">
+            <div id="joystick-knob"></div>
+        </div>
+    </div>
+
+    <button id="regen-btn">🔄 Новая карта</button>
+
+    <div id="controls-hint">
+        WASD / стрелки — летать · Пробел — новая карта · ЛКМ + drag — камера
     </div>
 
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
+// === РАЗМЕРЫ ===
+let VIEW_W = 0, VIEW_H = 0;
+function resize() {
+    VIEW_W = window.innerWidth;
+    VIEW_H = window.innerHeight;
+    canvas.width = VIEW_W * devicePixelRatio;
+    canvas.height = VIEW_H * devicePixelRatio;
+    canvas.style.width = VIEW_W + 'px';
+    canvas.style.height = VIEW_H + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
 // === НАСТРОЙКИ ===
 const MAP_SIZE = 100;
-const TILE = 16;               // размер тайла в пикселях
-const VIEW_W = canvas.width;
-const VIEW_H = canvas.height;
+const TILE = 16;
 
-// Типы блоков
-const BLOCK = {
-    WALL: 0,
-    DIRT: 1,
-    FERTILE: 2,
-    WATER: 3
-};
-
+const BLOCK = { WALL: 0, DIRT: 1, FERTILE: 2, WATER: 3 };
 const COLORS = {
     [BLOCK.WALL]:    '#555555',
     [BLOCK.DIRT]:    '#8B5A2B',
@@ -91,18 +161,15 @@ const COLORS = {
 
 // === КАРТА ===
 let map = [];
-
 function generateMap() {
     map = [];
     for (let y = 0; y < MAP_SIZE; y++) {
         map[y] = [];
         for (let x = 0; x < MAP_SIZE; x++) {
-            // Границы — стены
             if (x === 0 || y === 0 || x === MAP_SIZE-1 || y === MAP_SIZE-1) {
                 map[y][x] = BLOCK.WALL;
                 continue;
             }
-            // Случайный рельеф
             const r = Math.random();
             if (r < 0.08) map[y][x] = BLOCK.WALL;
             else if (r < 0.25) map[y][x] = BLOCK.WATER;
@@ -110,16 +177,15 @@ function generateMap() {
             else map[y][x] = BLOCK.DIRT;
         }
     }
-
-    // Немного сгладим воду (чтобы были озёра)
+    // Сглаживание воды
     for (let y = 1; y < MAP_SIZE-1; y++) {
         for (let x = 1; x < MAP_SIZE-1; x++) {
             if (map[y][x] === BLOCK.WATER) {
-                let neighbors = 0;
+                let n = 0;
                 for (let dy = -1; dy <= 1; dy++)
                     for (let dx = -1; dx <= 1; dx++)
-                        if (map[y+dy][x+dx] === BLOCK.WATER) neighbors++;
-                if (neighbors < 3 && Math.random() < 0.6) map[y][x] = BLOCK.DIRT;
+                        if (map[y+dy][x+dx] === BLOCK.WATER) n++;
+                if (n < 3 && Math.random() < 0.6) map[y][x] = BLOCK.DIRT;
             }
         }
     }
@@ -129,75 +195,174 @@ function generateMap() {
 const ship = {
     x: MAP_SIZE / 2,
     y: MAP_SIZE / 2,
-    angle: 0,          // радианы
-    speed: 0,
-    maxSpeed: 4.5,
-    accel: 0.18,
-    friction: 0.92,
-    turnSpeed: 0.08,
-    size: 14
+    angle: -Math.PI / 2,
+    vx: 0,
+    vy: 0,
+    maxSpeed: 3.8,
+    accel: 0.22,
+    friction: 0.94,
+    turnSpeed: 0.09,
+    size: 13,
+    // Сила притяжения к центру экрана
+    homeForce: 0.045
 };
 
-// === КАМЕРА ===
-// Камера хранит смещение в мировых координатах (в пикселях)
-// Корабль всегда стремится к центру экрана
-let camera = {
+// === КАМЕРА (свободная) ===
+const camera = {
     x: 0,
     y: 0,
-    // Лёгкий лаг для "отдельного" движения
-    lag: 0.12,
-    // Можно сдвигать мышью
-    offsetX: 0,
-    offsetY: 0,
-    dragging: false,
-    lastMouseX: 0,
-    lastMouseY: 0
+    // для плавности
+    targetX: 0,
+    targetY: 0
 };
 
 // === ВВОД ===
 const keys = {};
+const joystick = { active: false, dx: 0, dy: 0 };
+
+// Клавиатура
 window.addEventListener('keydown', e => {
     keys[e.code] = true;
     if (e.code === 'Space') {
         e.preventDefault();
         generateMap();
-        // Спавним корабль в безопасном месте
         spawnShip();
     }
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 
-// Мышь для сдвига камеры
+// Мышь / тач для камеры (свайп)
+let isDraggingCamera = false;
+let lastTouchX = 0, lastTouchY = 0;
+
 canvas.addEventListener('mousedown', e => {
     if (e.button === 0) {
-        camera.dragging = true;
-        camera.lastMouseX = e.clientX;
-        camera.lastMouseY = e.clientY;
+        isDraggingCamera = true;
+        lastTouchX = e.clientX;
+        lastTouchY = e.clientY;
     }
 });
-window.addEventListener('mouseup', () => camera.dragging = false);
+window.addEventListener('mouseup', () => isDraggingCamera = false);
 window.addEventListener('mousemove', e => {
-    if (camera.dragging) {
-        const dx = e.clientX - camera.lastMouseX;
-        const dy = e.clientY - camera.lastMouseY;
-        camera.offsetX -= dx;
-        camera.offsetY -= dy;
-        camera.lastMouseX = e.clientX;
-        camera.lastMouseY = e.clientY;
+    if (isDraggingCamera) {
+        const dx = e.clientX - lastTouchX;
+        const dy = e.clientY - lastTouchY;
+        camera.targetX -= dx;
+        camera.targetY -= dy;
+        lastTouchX = e.clientX;
+        lastTouchY = e.clientY;
     }
+});
+
+// Touch для камеры (свайп по экрану, кроме джойстика)
+canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) {
+        isDraggingCamera = true;
+        lastTouchX = e.touches[0].clientX;
+        lastTouchY = e.touches[0].clientY;
+    }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (isDraggingCamera && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - lastTouchX;
+        const dy = e.touches[0].clientY - lastTouchY;
+        camera.targetX -= dx;
+        camera.targetY -= dy;
+        lastTouchX = e.touches[0].clientX;
+        lastTouchY = e.touches[0].clientY;
+    }
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => isDraggingCamera = false);
+canvas.addEventListener('touchcancel', () => isDraggingCamera = false);
+
+// Виртуальный джойстик
+const joyZone = document.getElementById('joystick-zone');
+const joyKnob = document.getElementById('joystick-knob');
+const joyBase = document.getElementById('joystick-base');
+
+function handleJoyStart(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    joystick.active = true;
+    updateJoy(e);
+}
+function handleJoyMove(e) {
+    if (!joystick.active) return;
+    e.preventDefault();
+    e.stopPropagation();
+    updateJoy(e);
+}
+function handleJoyEnd(e) {
+    joystick.active = false;
+    joystick.dx = 0;
+    joystick.dy = 0;
+    joyKnob.style.transform = 'translate(-50%, -50%)';
+}
+
+function updateJoy(e) {
+    const rect = joyBase.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let clientX, clientY;
+    if (e.touches && e.touches[0]) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+    } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+    }
+    let dx = clientX - cx;
+    let dy = clientY - cy;
+    const maxDist = rect.width / 2 - 10;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > maxDist) {
+        dx = dx / dist * maxDist;
+        dy = dy / dist * maxDist;
+    }
+    joystick.dx = dx / maxDist;
+    joystick.dy = dy / maxDist;
+    joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+}
+
+joyZone.addEventListener('touchstart', handleJoyStart, { passive: false });
+joyZone.addEventListener('touchmove', handleJoyMove, { passive: false });
+joyZone.addEventListener('touchend', handleJoyEnd);
+joyZone.addEventListener('touchcancel', handleJoyEnd);
+// Мышь тоже для теста
+joyZone.addEventListener('mousedown', handleJoyStart);
+window.addEventListener('mousemove', e => { if (joystick.active) updateJoy(e); });
+window.addEventListener('mouseup', handleJoyEnd);
+
+// Кнопка регена
+document.getElementById('regen-btn').addEventListener('click', () => {
+    generateMap();
+    spawnShip();
+});
+document.getElementById('regen-btn').addEventListener('touchend', e => {
+    e.preventDefault();
+    generateMap();
+    spawnShip();
 });
 
 // === СПАВН ===
 function spawnShip() {
-    // Ищем землю недалеко от центра
-    for (let attempt = 0; attempt < 200; attempt++) {
-        const tx = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*30);
-        const ty = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*30);
+    for (let i = 0; i < 200; i++) {
+        const tx = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*28);
+        const ty = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*28);
         if (map[ty] && map[ty][tx] !== BLOCK.WALL && map[ty][tx] !== BLOCK.WATER) {
             ship.x = tx + 0.5;
             ship.y = ty + 0.5;
-            ship.speed = 0;
+            ship.vx = 0;
+            ship.vy = 0;
             ship.angle = -Math.PI/2;
+            // Центрируем камеру на корабле
+            camera.x = ship.x * TILE - VIEW_W / 2;
+            camera.y = ship.y * TILE - VIEW_H / 2;
+            camera.targetX = camera.x;
+            camera.targetY = camera.y;
             return;
         }
     }
@@ -207,27 +372,73 @@ function spawnShip() {
 
 // === ФИЗИКА ===
 function update(dt) {
-    // Поворот
-    if (keys['KeyA'] || keys['ArrowLeft'])  ship.angle -= ship.turnSpeed;
-    if (keys['KeyD'] || keys['ArrowRight']) ship.angle += ship.turnSpeed;
+    // === Управление кораблём ===
+    let inputX = 0, inputY = 0;
 
-    // Ускорение
-    if (keys['KeyW'] || keys['ArrowUp']) {
-        ship.speed += ship.accel;
-    } else if (keys['KeyS'] || keys['ArrowDown']) {
-        ship.speed -= ship.accel * 0.6;
-    } else {
-        ship.speed *= ship.friction;
+    // Клавиатура
+    if (keys['KeyA'] || keys['ArrowLeft'])  inputX -= 1;
+    if (keys['KeyD'] || keys['ArrowRight']) inputX += 1;
+    if (keys['KeyW'] || keys['ArrowUp'])    inputY -= 1;
+    if (keys['KeyS'] || keys['ArrowDown'])  inputY += 1;
+
+    // Джойстик
+    if (joystick.active) {
+        inputX += joystick.dx;
+        inputY += joystick.dy;
     }
 
-    ship.speed = Math.max(-ship.maxSpeed*0.4, Math.min(ship.maxSpeed, ship.speed));
+    // Нормализация
+    const len = Math.sqrt(inputX*inputX + inputY*inputY);
+    if (len > 1) {
+        inputX /= len;
+        inputY /= len;
+    }
 
-    // Движение
-    const nextX = ship.x + Math.cos(ship.angle) * ship.speed * dt * 60;
-    const nextY = ship.y + Math.sin(ship.angle) * ship.speed * dt * 60;
+    // Поворот и ускорение
+    if (len > 0.1) {
+        const targetAngle = Math.atan2(inputY, inputX);
+        // Плавный поворот
+        let diff = targetAngle - ship.angle;
+        while (diff > Math.PI) diff -= Math.PI*2;
+        while (diff < -Math.PI) diff += Math.PI*2;
+        ship.angle += diff * 0.15;
 
-    // Коллизии (простая проверка тайла)
-    const checkTile = (px, py) => {
+        ship.vx += Math.cos(ship.angle) * ship.accel * len;
+        ship.vy += Math.sin(ship.angle) * ship.accel * len;
+    }
+
+    // Трение
+    ship.vx *= ship.friction;
+    ship.vy *= ship.friction;
+
+    // Ограничение скорости
+    const speed = Math.sqrt(ship.vx*ship.vx + ship.vy*ship.vy);
+    if (speed > ship.maxSpeed) {
+        ship.vx = ship.vx / speed * ship.maxSpeed;
+        ship.vy = ship.vy / speed * ship.maxSpeed;
+    }
+
+    // === ПРИТЯЖЕНИЕ К ЦЕНТРУ ЭКРАНА ===
+    // Центр экрана в мировых координатах
+    const centerWorldX = (camera.x + VIEW_W / 2) / TILE;
+    const centerWorldY = (camera.y + VIEW_H / 2) / TILE;
+
+    const toCenterX = centerWorldX - ship.x;
+    const toCenterY = centerWorldY - ship.y;
+    const distToCenter = Math.sqrt(toCenterX*toCenterX + toCenterY*toCenterY);
+
+    // Сила растёт с расстоянием (но не слишком сильно)
+    if (distToCenter > 0.5) {
+        const force = Math.min(distToCenter * ship.homeForce, 0.18);
+        ship.vx += (toCenterX / distToCenter) * force;
+        ship.vy += (toCenterY / distToCenter) * force;
+    }
+
+    // Движение + коллизии
+    const nextX = ship.x + ship.vx * dt * 60;
+    const nextY = ship.y + ship.vy * dt * 60;
+
+    const canPass = (px, py) => {
         const tx = Math.floor(px);
         const ty = Math.floor(py);
         if (tx < 0 || ty < 0 || tx >= MAP_SIZE || ty >= MAP_SIZE) return false;
@@ -235,39 +446,34 @@ function update(dt) {
         return t !== BLOCK.WALL && t !== BLOCK.WATER;
     };
 
-    if (checkTile(nextX, ship.y)) ship.x = nextX;
-    else ship.speed *= 0.3;
+    if (canPass(nextX, ship.y)) ship.x = nextX;
+    else ship.vx *= -0.3;
 
-    if (checkTile(ship.x, nextY)) ship.y = nextY;
-    else ship.speed *= 0.3;
+    if (canPass(ship.x, nextY)) ship.y = nextY;
+    else ship.vy *= -0.3;
 
-    // Камера стремится держать корабль в центре + ручной оффсет
-    const targetCamX = ship.x * TILE - VIEW_W / 2;
-    const targetCamY = ship.y * TILE - VIEW_H / 2;
+    // Камера плавно следует за target (который двигается свайпом)
+    camera.x += (camera.targetX - camera.x) * 0.18;
+    camera.y += (camera.targetY - camera.y) * 0.18;
 
-    camera.x += (targetCamX - camera.x) * camera.lag;
-    camera.y += (targetCamY - camera.y) * camera.lag;
-
-    // Ограничиваем камеру границами карты
-    camera.x = Math.max(0, Math.min(MAP_SIZE * TILE - VIEW_W, camera.x + camera.offsetX));
-    camera.y = Math.max(0, Math.min(MAP_SIZE * TILE - VIEW_H, camera.y + camera.offsetY));
-    
-    // Плавно возвращаем оффсет к нулю (корабль "стремится" в центр)
-    camera.offsetX *= 0.96;
-    camera.offsetY *= 0.96;
+    // Ограничение камеры границами карты
+    const maxCamX = MAP_SIZE * TILE - VIEW_W;
+    const maxCamY = MAP_SIZE * TILE - VIEW_H;
+    camera.x = Math.max(0, Math.min(maxCamX, camera.x));
+    camera.y = Math.max(0, Math.min(maxCamY, camera.y));
+    camera.targetX = Math.max(0, Math.min(maxCamX, camera.targetX));
+    camera.targetY = Math.max(0, Math.min(maxCamY, camera.targetY));
 }
 
 // === ОТРИСОВКА ===
 function draw() {
     ctx.clearRect(0, 0, VIEW_W, VIEW_H);
 
-    // Видимая область тайлов
     const startTX = Math.max(0, Math.floor(camera.x / TILE) - 1);
     const startTY = Math.max(0, Math.floor(camera.y / TILE) - 1);
     const endTX   = Math.min(MAP_SIZE, Math.ceil((camera.x + VIEW_W) / TILE) + 1);
     const endTY   = Math.min(MAP_SIZE, Math.ceil((camera.y + VIEW_H) / TILE) + 1);
 
-    // Рисуем тайлы
     for (let y = startTY; y < endTY; y++) {
         for (let x = startTX; x < endTX; x++) {
             const type = map[y][x];
@@ -275,15 +481,14 @@ function draw() {
             const sy = y * TILE - camera.y;
 
             ctx.fillStyle = COLORS[type];
-            ctx.fillRect(sx, sy, TILE, TILE);
+            ctx.fillRect(sx, sy, TILE + 0.5, TILE + 0.5);
 
-            // Лёгкая детализация
             if (type === BLOCK.DIRT || type === BLOCK.FERTILE) {
                 ctx.fillStyle = type === BLOCK.FERTILE ? 'rgba(80,120,40,0.25)' : 'rgba(0,0,0,0.12)';
                 ctx.fillRect(sx + 2, sy + 2, TILE - 4, TILE - 4);
             }
             if (type === BLOCK.WATER) {
-                ctx.fillStyle = 'rgba(255,255,255,0.08)';
+                ctx.fillStyle = 'rgba(255,255,255,0.07)';
                 ctx.fillRect(sx + 3, sy + 3, 4, 4);
             }
             if (type === BLOCK.WALL) {
@@ -294,7 +499,7 @@ function draw() {
         }
     }
 
-    // === КОРАБЛЬ ===
+    // Корабль
     const sx = ship.x * TILE - camera.x;
     const sy = ship.y * TILE - camera.y;
 
@@ -302,8 +507,7 @@ function draw() {
     ctx.translate(sx, sy);
     ctx.rotate(ship.angle);
 
-    // Корпус (серо-оранжевый)
-    // Основной корпус
+    // Корпус
     ctx.fillStyle = '#6a6a6a';
     ctx.beginPath();
     ctx.moveTo(ship.size, 0);
@@ -325,21 +529,22 @@ function draw() {
     // Кабина
     ctx.fillStyle = '#222';
     ctx.beginPath();
-    ctx.arc(ship.size * 0.15, 0, 3.5, 0, Math.PI * 2);
+    ctx.arc(ship.size * 0.15, 0, 3.2, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#ffaa44';
     ctx.beginPath();
-    ctx.arc(ship.size * 0.15, 0, 2, 0, Math.PI * 2);
+    ctx.arc(ship.size * 0.15, 0, 1.8, 0, Math.PI * 2);
     ctx.fill();
 
-    // Двигатели (когда летим)
-    if (Math.abs(ship.speed) > 0.3) {
-        ctx.fillStyle = ship.speed > 0 ? '#ff4400' : '#4488ff';
-        ctx.globalAlpha = 0.7 + Math.random() * 0.3;
+    // Двигатель
+    const spd = Math.sqrt(ship.vx*ship.vx + ship.vy*ship.vy);
+    if (spd > 0.4) {
+        ctx.fillStyle = '#ff4400';
+        ctx.globalAlpha = 0.6 + Math.random() * 0.4;
         ctx.beginPath();
-        ctx.moveTo(-ship.size * 0.55, -4);
-        ctx.lineTo(-ship.size * 0.55 - 8 - Math.random()*6, 0);
-        ctx.lineTo(-ship.size * 0.55, 4);
+        ctx.moveTo(-ship.size * 0.55, -3.5);
+        ctx.lineTo(-ship.size * 0.55 - 7 - Math.random()*5, 0);
+        ctx.lineTo(-ship.size * 0.55, 3.5);
         ctx.closePath();
         ctx.fill();
         ctx.globalAlpha = 1;
@@ -347,42 +552,38 @@ function draw() {
 
     ctx.restore();
 
-    // Мини-карта (правый верхний угол)
-    const miniSize = 120;
+    // Мини-карта
+    const miniSize = Math.min(110, VIEW_W * 0.22);
     const miniScale = miniSize / MAP_SIZE;
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(VIEW_W - miniSize - 12, 12, miniSize, miniSize);
-    ctx.strokeStyle = '#666';
-    ctx.strokeRect(VIEW_W - miniSize - 12, 12, miniSize, miniSize);
+    const mx = VIEW_W - miniSize - 12;
+    const my = 70;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(mx, my, miniSize, miniSize);
+    ctx.strokeStyle = '#555';
+    ctx.strokeRect(mx, my, miniSize, miniSize);
 
     for (let y = 0; y < MAP_SIZE; y += 2) {
         for (let x = 0; x < MAP_SIZE; x += 2) {
             ctx.fillStyle = COLORS[map[y][x]];
-            ctx.fillRect(
-                VIEW_W - miniSize - 12 + x * miniScale,
-                12 + y * miniScale,
-                miniScale * 2,
-                miniScale * 2
-            );
+            ctx.fillRect(mx + x * miniScale, my + y * miniScale, miniScale * 2 + 0.5, miniScale * 2 + 0.5);
         }
     }
-    // Корабль на мини-карте
+    // Корабль
     ctx.fillStyle = '#ff8c00';
     ctx.beginPath();
-    ctx.arc(
-        VIEW_W - miniSize - 12 + ship.x * miniScale,
-        12 + ship.y * miniScale,
-        3, 0, Math.PI*2
-    );
+    ctx.arc(mx + ship.x * miniScale, my + ship.y * miniScale, 3, 0, Math.PI*2);
     ctx.fill();
 
-    // Инфо
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(8, 8, 180, 50);
-    ctx.fillStyle = '#ff8c00';
-    ctx.font = '12px monospace';
-    ctx.fillText(`Позиция: ${ship.x.toFixed(1)}, ${ship.y.toFixed(1)}`, 16, 26);
-    ctx.fillText(`Скорость: ${ship.speed.toFixed(2)}`, 16, 42);
+    // Рамка видимой области на миникарте
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(
+        mx + (camera.x / TILE) * miniScale,
+        my + (camera.y / TILE) * miniScale,
+        (VIEW_W / TILE) * miniScale,
+        (VIEW_H / TILE) * miniScale
+    );
 }
 
 // === ЦИКЛ ===
@@ -390,13 +591,11 @@ let lastTime = performance.now();
 function loop(now) {
     const dt = Math.min(0.033, (now - lastTime) / 1000);
     lastTime = now;
-
     update(dt);
     draw();
     requestAnimationFrame(loop);
 }
 
-// Старт
 generateMap();
 spawnShip();
 requestAnimationFrame(loop);
