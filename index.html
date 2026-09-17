@@ -122,33 +122,130 @@ const COLORS = {
 
 // === КАРТА ===
 let map = [];
+
 function generateMap() {
+    // 1. Базовый слой — почти вся земля
     map = [];
     for (let y = 0; y < MAP_SIZE; y++) {
         map[y] = [];
         for (let x = 0; x < MAP_SIZE; x++) {
-            if (x === 0 || y === 0 || x === MAP_SIZE-1 || y === MAP_SIZE-1) {
-                map[y][x] = BLOCK.WALL;
-                continue;
-            }
-            const r = Math.random();
-            if (r < 0.08) map[y][x] = BLOCK.WALL;
-            else if (r < 0.25) map[y][x] = BLOCK.WATER;
-            else if (r < 0.55) map[y][x] = BLOCK.FERTILE;
-            else map[y][x] = BLOCK.DIRT;
+            map[y][x] = BLOCK.DIRT;
         }
     }
-    // Сглаживание воды
-    for (let y = 1; y < MAP_SIZE-1; y++) {
-        for (let x = 1; x < MAP_SIZE-1; x++) {
-            if (map[y][x] === BLOCK.WATER) {
-                let n = 0;
-                for (let dy = -1; dy <= 1; dy++)
-                    for (let dx = -1; dx <= 1; dx++)
-                        if (map[y+dy][x+dx] === BLOCK.WATER) n++;
-                if (n < 3 && Math.random() < 0.6) map[y][x] = BLOCK.DIRT;
+
+    // Границы всегда стены
+    for (let i = 0; i < MAP_SIZE; i++) {
+        map[0][i] = BLOCK.WALL;
+        map[MAP_SIZE-1][i] = BLOCK.WALL;
+        map[i][0] = BLOCK.WALL;
+        map[i][MAP_SIZE-1] = BLOCK.WALL;
+    }
+
+    // 2. Создаём крупные озёра воды (несколько штук)
+    const lakeCount = 6 + Math.floor(Math.random() * 5);
+    for (let l = 0; l < lakeCount; l++) {
+        const cx = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
+        const cy = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
+        const radius = 4 + Math.floor(Math.random() * 9);
+
+        for (let y = cy - radius; y <= cy + radius; y++) {
+            for (let x = cx - radius; x <= cx + radius; x++) {
+                if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
+                const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+                if (dist < radius - Math.random() * 2.5) {
+                    map[y][x] = BLOCK.WATER;
+                }
             }
         }
+    }
+
+    // 3. Плодородная земля — большие пятна
+    const fertileCount = 8 + Math.floor(Math.random() * 6);
+    for (let f = 0; f < fertileCount; f++) {
+        const cx = 6 + Math.floor(Math.random() * (MAP_SIZE - 12));
+        const cy = 6 + Math.floor(Math.random() * (MAP_SIZE - 12));
+        const radius = 5 + Math.floor(Math.random() * 10);
+
+        for (let y = cy - radius; y <= cy + radius; y++) {
+            for (let x = cx - radius; x <= cx + radius; x++) {
+                if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
+                if (map[y][x] === BLOCK.WATER) continue; // воду не затираем
+                const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+                if (dist < radius - Math.random() * 3) {
+                    map[y][x] = BLOCK.FERTILE;
+                }
+            }
+        }
+    }
+
+    // 4. Стены / скалы — кластеры
+    const wallCount = 10 + Math.floor(Math.random() * 8);
+    for (let w = 0; w < wallCount; w++) {
+        const cx = 5 + Math.floor(Math.random() * (MAP_SIZE - 10));
+        const cy = 5 + Math.floor(Math.random() * (MAP_SIZE - 10));
+        const radius = 2 + Math.floor(Math.random() * 5);
+
+        for (let y = cy - radius; y <= cy + radius; y++) {
+            for (let x = cx - radius; x <= cx + radius; x++) {
+                if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
+                const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+                if (dist < radius - Math.random() * 1.8) {
+                    map[y][x] = BLOCK.WALL;
+                }
+            }
+        }
+    }
+
+    // 5. Несколько проходов сглаживания (cellular automata style)
+    // Убираем одиночные клетки и делаем формы более цельными
+    for (let pass = 0; pass < 3; pass++) {
+        const newMap = map.map(row => row.slice());
+
+        for (let y = 1; y < MAP_SIZE - 1; y++) {
+            for (let x = 1; x < MAP_SIZE - 1; x++) {
+                // Считаем соседей каждого типа
+                let waterN = 0, fertileN = 0, wallN = 0, dirtN = 0;
+
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        if (dx === 0 && dy === 0) continue;
+                        const t = map[y + dy][x + dx];
+                        if (t === BLOCK.WATER) waterN++;
+                        else if (t === BLOCK.FERTILE) fertileN++;
+                        else if (t === BLOCK.WALL) wallN++;
+                        else dirtN++;
+                    }
+                }
+
+                const current = map[y][x];
+
+                // Вода: если мало соседей воды — превращаем в землю
+                if (current === BLOCK.WATER && waterN < 3) {
+                    newMap[y][x] = BLOCK.DIRT;
+                }
+                // Вода: если много соседей воды — оставляем / расширяем
+                else if (current !== BLOCK.WATER && waterN >= 5 && Math.random() < 0.4) {
+                    newMap[y][x] = BLOCK.WATER;
+                }
+                // Стены: убираем одиночки
+                else if (current === BLOCK.WALL && wallN < 2) {
+                    newMap[y][x] = BLOCK.DIRT;
+                }
+                // Плодородная: если совсем одна — убираем
+                else if (current === BLOCK.FERTILE && fertileN < 2) {
+                    newMap[y][x] = BLOCK.DIRT;
+                }
+            }
+        }
+        map = newMap;
+    }
+
+    // Финально границы снова стены
+    for (let i = 0; i < MAP_SIZE; i++) {
+        map[0][i] = BLOCK.WALL;
+        map[MAP_SIZE-1][i] = BLOCK.WALL;
+        map[i][0] = BLOCK.WALL;
+        map[i][MAP_SIZE-1] = BLOCK.WALL;
     }
 }
 
@@ -163,7 +260,6 @@ const ship = {
     accel: 0.12,
     friction: 0.95,
     size: 13,
-    // Сила притяжения к центру экрана
     homeForce: 0.035
 };
 
@@ -249,10 +345,10 @@ document.getElementById('regen-btn').addEventListener('touchend', e => {
 
 // === СПАВН ===
 function spawnShip() {
-    for (let i = 0; i < 200; i++) {
-        const tx = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*28);
-        const ty = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*28);
-        if (map[ty] && map[ty][tx] !== undefined) {
+    for (let i = 0; i < 300; i++) {
+        const tx = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*40);
+        const ty = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*40);
+        if (map[ty] && map[ty][tx] !== BLOCK.WALL && map[ty][tx] !== BLOCK.WATER) {
             ship.x = tx + 0.5;
             ship.y = ty + 0.5;
             ship.vx = 0;
@@ -286,7 +382,6 @@ function update(dt) {
     }
 
     if (len > 0.1) {
-        // Ускоряем в направлении ввода
         ship.vx += inputX * ship.accel;
         ship.vy += inputY * ship.accel;
     }
@@ -316,7 +411,7 @@ function update(dt) {
         ship.vy = ship.vy / speed * ship.maxSpeed;
     }
 
-    // Движение — БЕЗ коллизий, летает над всем
+    // Движение — БЕЗ коллизий
     ship.x += ship.vx * dt * 60;
     ship.y += ship.vy * dt * 60;
 
@@ -330,7 +425,6 @@ function update(dt) {
         let diff = targetAngle - ship.angle;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
-        // Плавный, но быстрый поворот в сторону скорости
         ship.angle += diff * 0.2;
     }
 
@@ -418,7 +512,7 @@ function draw() {
     ctx.arc(ship.size * 0.15, 0, 1.8, 0, Math.PI * 2);
     ctx.fill();
 
-    // Двигатель (когда летит)
+    // Двигатель
     const spd = Math.sqrt(ship.vx*ship.vx + ship.vy*ship.vy);
     if (spd > 0.25) {
         ctx.fillStyle = '#ff4400';
