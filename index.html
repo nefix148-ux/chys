@@ -40,10 +40,9 @@
             height: 100%;
             background: #0a0a0a;
         }
-        #regen-btn {
+        #regen-btn, #inv-toggle {
             position: absolute;
             bottom: 20px;
-            right: 16px;
             z-index: 20;
             background: rgba(255,140,0,0.2);
             border: 1px solid #ff8c00;
@@ -54,24 +53,9 @@
             pointer-events: auto;
             user-select: none;
         }
-        #regen-btn:active {
-            background: rgba(255,140,0,0.4);
-        }
-        #inv-toggle {
-            position: absolute;
-            bottom: 20px;
-            left: 16px;
-            z-index: 20;
-            background: rgba(255,140,0,0.2);
-            border: 1px solid #ff8c00;
-            color: #ff8c00;
-            padding: 10px 16px;
-            border-radius: 10px;
-            font-size: 0.8rem;
-            pointer-events: auto;
-            user-select: none;
-        }
-        #inv-toggle:active {
+        #regen-btn { right: 16px; }
+        #inv-toggle { left: 16px; }
+        #regen-btn:active, #inv-toggle:active {
             background: rgba(255,140,0,0.4);
         }
         @media (max-width: 699px) {
@@ -123,6 +107,35 @@ const COLORS = {
     [BLOCK.WATER]:   '#1E90FF'
 };
 
+// Руды
+const ORE = {
+    NONE: 0,
+    COPPER: 1,
+    LEAD: 2,
+    COAL: 3,
+    TITANIUM: 4,
+    THORIUM: 5,
+    METALOM: 6
+};
+
+const ORE_COLORS = {
+    [ORE.COPPER]:   '#d99d73',
+    [ORE.LEAD]:     '#8c7fa9',
+    [ORE.COAL]:     '#1a1a1a',
+    [ORE.TITANIUM]: '#8da1b0',
+    [ORE.THORIUM]:  '#f9a3c7',
+    [ORE.METALOM]:  '#6e6e6e'
+};
+
+const ORE_TO_RESOURCE = {
+    [ORE.COPPER]:   'copper',
+    [ORE.LEAD]:     'lead',
+    [ORE.COAL]:     'coal',
+    [ORE.TITANIUM]: 'titanium',
+    [ORE.THORIUM]:  'thorium',
+    [ORE.METALOM]:  'metalom'
+};
+
 // === ИНВЕНТАРЬ ===
 const RESOURCES = [
     { id: 'copper',     name: 'Медь',              color: '#d99d73', icon: 'ore' },
@@ -146,7 +159,6 @@ const RESOURCES = [
 const inventory = {};
 RESOURCES.forEach(r => inventory[r.id] = 0);
 
-// Для теста сразу немного ресурсов
 inventory.copper = 24;
 inventory.lead = 18;
 inventory.coal = 45;
@@ -158,21 +170,23 @@ let showInventory = true;
 
 // === КАРТА ===
 let map = [];
+let oreMap = [];   // слой руд поверх террейна
 
 function generateMap() {
     map = [];
+    oreMap = [];
     for (let y = 0; y < MAP_SIZE; y++) {
         map[y] = [];
+        oreMap[y] = [];
         for (let x = 0; x < MAP_SIZE; x++) {
             map[y][x] = BLOCK.DIRT;
+            oreMap[y][x] = ORE.NONE;
         }
     }
 
+    // Границы
     for (let i = 0; i < MAP_SIZE; i++) {
-        map[0][i] = BLOCK.WALL;
-        map[MAP_SIZE-1][i] = BLOCK.WALL;
-        map[i][0] = BLOCK.WALL;
-        map[i][MAP_SIZE-1] = BLOCK.WALL;
+        map[0][i] = map[MAP_SIZE-1][i] = map[i][0] = map[i][MAP_SIZE-1] = BLOCK.WALL;
     }
 
     // Озёра
@@ -184,13 +198,13 @@ function generateMap() {
         for (let y = cy - radius; y <= cy + radius; y++) {
             for (let x = cx - radius; x <= cx + radius; x++) {
                 if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
-                const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+                const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
                 if (dist < radius - Math.random() * 2.5) map[y][x] = BLOCK.WATER;
             }
         }
     }
 
-    // Плодородная
+    // Плодородная земля
     const fertileCount = 8 + Math.floor(Math.random() * 6);
     for (let f = 0; f < fertileCount; f++) {
         const cx = 6 + Math.floor(Math.random() * (MAP_SIZE - 12));
@@ -200,13 +214,13 @@ function generateMap() {
             for (let x = cx - radius; x <= cx + radius; x++) {
                 if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
                 if (map[y][x] === BLOCK.WATER) continue;
-                const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+                const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
                 if (dist < radius - Math.random() * 3) map[y][x] = BLOCK.FERTILE;
             }
         }
     }
 
-    // Стены
+    // Стены / скалы
     const wallCount = 10 + Math.floor(Math.random() * 8);
     for (let w = 0; w < wallCount; w++) {
         const cx = 5 + Math.floor(Math.random() * (MAP_SIZE - 10));
@@ -215,71 +229,91 @@ function generateMap() {
         for (let y = cy - radius; y <= cy + radius; y++) {
             for (let x = cx - radius; x <= cx + radius; x++) {
                 if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
-                const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+                const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
                 if (dist < radius - Math.random() * 1.8) map[y][x] = BLOCK.WALL;
             }
         }
     }
 
-    // Сглаживание
+    // Сглаживание террейна
     for (let pass = 0; pass < 3; pass++) {
         const newMap = map.map(row => row.slice());
         for (let y = 1; y < MAP_SIZE - 1; y++) {
             for (let x = 1; x < MAP_SIZE - 1; x++) {
                 let waterN = 0, fertileN = 0, wallN = 0;
-                for (let dy = -1; dy <= 1; dy++) {
+                for (let dy = -1; dy <= 1; dy++)
                     for (let dx = -1; dx <= 1; dx++) {
                         if (dx === 0 && dy === 0) continue;
-                        const t = map[y + dy][x + dx];
+                        const t = map[y+dy][x+dx];
                         if (t === BLOCK.WATER) waterN++;
                         else if (t === BLOCK.FERTILE) fertileN++;
                         else if (t === BLOCK.WALL) wallN++;
                     }
-                }
-                const current = map[y][x];
-                if (current === BLOCK.WATER && waterN < 3) newMap[y][x] = BLOCK.DIRT;
-                else if (current !== BLOCK.WATER && waterN >= 5 && Math.random() < 0.4) newMap[y][x] = BLOCK.WATER;
-                else if (current === BLOCK.WALL && wallN < 2) newMap[y][x] = BLOCK.DIRT;
-                else if (current === BLOCK.FERTILE && fertileN < 2) newMap[y][x] = BLOCK.DIRT;
+                const cur = map[y][x];
+                if (cur === BLOCK.WATER && waterN < 3) newMap[y][x] = BLOCK.DIRT;
+                else if (cur !== BLOCK.WATER && waterN >= 5 && Math.random() < 0.4) newMap[y][x] = BLOCK.WATER;
+                else if (cur === BLOCK.WALL && wallN < 2) newMap[y][x] = BLOCK.DIRT;
+                else if (cur === BLOCK.FERTILE && fertileN < 2) newMap[y][x] = BLOCK.DIRT;
             }
         }
         map = newMap;
     }
 
+    // Границы снова стены
     for (let i = 0; i < MAP_SIZE; i++) {
-        map[0][i] = BLOCK.WALL;
-        map[MAP_SIZE-1][i] = BLOCK.WALL;
-        map[i][0] = BLOCK.WALL;
-        map[i][MAP_SIZE-1] = BLOCK.WALL;
+        map[0][i] = map[MAP_SIZE-1][i] = map[i][0] = map[i][MAP_SIZE-1] = BLOCK.WALL;
+    }
+
+    // === ГЕНЕРАЦИЯ КЛАСТЕРОВ РУД ===
+    // Руды могут появляться только на DIRT и FERTILE
+    const oreTypes = [
+        { type: ORE.COPPER,   count: 7,  minR: 2, maxR: 5 },
+        { type: ORE.LEAD,     count: 6,  minR: 2, maxR: 5 },
+        { type: ORE.COAL,     count: 8,  minR: 2, maxR: 6 },
+        { type: ORE.TITANIUM, count: 4,  minR: 2, maxR: 4 },
+        { type: ORE.THORIUM,  count: 3,  minR: 2, maxR: 4 },
+        { type: ORE.METALOM,  count: 5,  minR: 2, maxR: 4 }
+    ];
+
+    for (const ore of oreTypes) {
+        for (let c = 0; c < ore.count; c++) {
+            const cx = 5 + Math.floor(Math.random() * (MAP_SIZE - 10));
+            const cy = 5 + Math.floor(Math.random() * (MAP_SIZE - 10));
+            const radius = ore.minR + Math.floor(Math.random() * (ore.maxR - ore.minR + 1));
+
+            for (let y = cy - radius; y <= cy + radius; y++) {
+                for (let x = cx - radius; x <= cx + radius; x++) {
+                    if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
+                    // Только на земле или плодородной
+                    if (map[y][x] !== BLOCK.DIRT && map[y][x] !== BLOCK.FERTILE) continue;
+                    if (oreMap[y][x] !== ORE.NONE) continue; // уже есть руда
+
+                    const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
+                    if (dist < radius - Math.random() * 1.6) {
+                        oreMap[y][x] = ore.type;
+                    }
+                }
+            }
+        }
     }
 }
 
 // === КОРАБЛЬ ===
 const ship = {
-    x: MAP_SIZE / 2,
-    y: MAP_SIZE / 2,
+    x: MAP_SIZE / 2, y: MAP_SIZE / 2,
     angle: -Math.PI / 2,
-    vx: 0,
-    vy: 0,
-    maxSpeed: 2.4,
-    accel: 0.12,
-    friction: 0.95,
-    size: 13,
-    homeForce: 0.035
+    vx: 0, vy: 0,
+    maxSpeed: 2.4, accel: 0.12, friction: 0.95,
+    size: 13, homeForce: 0.035
 };
 
-// === КАМЕРА ===
 const camera = { x: 0, y: 0, targetX: 0, targetY: 0 };
 
 // === ВВОД ===
 const keys = {};
 window.addEventListener('keydown', e => {
     keys[e.code] = true;
-    if (e.code === 'Space') {
-        e.preventDefault();
-        generateMap();
-        spawnShip();
-    }
+    if (e.code === 'Space') { e.preventDefault(); generateMap(); spawnShip(); }
     if (e.code === 'KeyI') showInventory = !showInventory;
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
@@ -290,8 +324,7 @@ let lastTouchX = 0, lastTouchY = 0;
 canvas.addEventListener('mousedown', e => {
     if (e.button === 0) {
         isDraggingCamera = true;
-        lastTouchX = e.clientX;
-        lastTouchY = e.clientY;
+        lastTouchX = e.clientX; lastTouchY = e.clientY;
     }
 });
 window.addEventListener('mouseup', () => isDraggingCamera = false);
@@ -299,8 +332,7 @@ window.addEventListener('mousemove', e => {
     if (isDraggingCamera) {
         camera.targetX -= (e.clientX - lastTouchX);
         camera.targetY -= (e.clientY - lastTouchY);
-        lastTouchX = e.clientX;
-        lastTouchY = e.clientY;
+        lastTouchX = e.clientX; lastTouchY = e.clientY;
     }
 });
 
@@ -327,8 +359,7 @@ canvas.addEventListener('touchcancel', () => isDraggingCamera = false);
 
 document.getElementById('regen-btn').addEventListener('click', () => { generateMap(); spawnShip(); });
 document.getElementById('regen-btn').addEventListener('touchend', e => { e.preventDefault(); generateMap(); spawnShip(); });
-
-document.getElementById('inv-toggle').addEventListener('click', () => { showInventory = !showInventory; });
+document.getElementById('inv-toggle').addEventListener('click', () => showInventory = !showInventory);
 document.getElementById('inv-toggle').addEventListener('touchend', e => { e.preventDefault(); showInventory = !showInventory; });
 
 // === СПАВН ===
@@ -336,15 +367,12 @@ function spawnShip() {
     for (let i = 0; i < 300; i++) {
         const tx = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*40);
         const ty = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*40);
-        if (map[ty] && map[ty][tx] !== BLOCK.WALL && map[ty][tx] !== BLOCK.WATER) {
-            ship.x = tx + 0.5;
-            ship.y = ty + 0.5;
-            ship.vx = 0; ship.vy = 0;
-            ship.angle = -Math.PI/2;
+        if (map[ty] && (map[ty][tx] === BLOCK.DIRT || map[ty][tx] === BLOCK.FERTILE)) {
+            ship.x = tx + 0.5; ship.y = ty + 0.5;
+            ship.vx = 0; ship.vy = 0; ship.angle = -Math.PI/2;
             camera.x = ship.x * TILE - VIEW_W / 2;
             camera.y = ship.y * TILE - VIEW_H / 2;
-            camera.targetX = camera.x;
-            camera.targetY = camera.y;
+            camera.targetX = camera.x; camera.targetY = camera.y;
             return;
         }
     }
@@ -361,22 +389,19 @@ function update(dt) {
 
     const len = Math.sqrt(inputX*inputX + inputY*inputY);
     if (len > 1) { inputX /= len; inputY /= len; }
-
     if (len > 0.1) {
         ship.vx += inputX * ship.accel;
         ship.vy += inputY * ship.accel;
     }
 
-    const centerWorldX = (camera.x + VIEW_W / 2) / TILE;
-    const centerWorldY = (camera.y + VIEW_H / 2) / TILE;
-    const toCenterX = centerWorldX - ship.x;
-    const toCenterY = centerWorldY - ship.y;
-    const distToCenter = Math.sqrt(toCenterX*toCenterX + toCenterY*toCenterY);
-
-    if (distToCenter > 0.8) {
-        const force = Math.min(distToCenter * ship.homeForce, 0.12);
-        ship.vx += (toCenterX / distToCenter) * force;
-        ship.vy += (toCenterY / distToCenter) * force;
+    const cx = (camera.x + VIEW_W/2) / TILE;
+    const cy = (camera.y + VIEW_H/2) / TILE;
+    const dx = cx - ship.x, dy = cy - ship.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > 0.8) {
+        const force = Math.min(dist * ship.homeForce, 0.12);
+        ship.vx += (dx / dist) * force;
+        ship.vy += (dy / dist) * force;
     }
 
     ship.vx *= ship.friction;
@@ -390,14 +415,14 @@ function update(dt) {
 
     ship.x += ship.vx * dt * 60;
     ship.y += ship.vy * dt * 60;
-    ship.x = Math.max(0.5, Math.min(MAP_SIZE - 0.5, ship.x));
-    ship.y = Math.max(0.5, Math.min(MAP_SIZE - 0.5, ship.y));
+    ship.x = Math.max(0.5, Math.min(MAP_SIZE-0.5, ship.x));
+    ship.y = Math.max(0.5, Math.min(MAP_SIZE-0.5, ship.y));
 
     if (speed > 0.12) {
-        const targetAngle = Math.atan2(ship.vy, ship.vx);
-        let diff = targetAngle - ship.angle;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
+        const target = Math.atan2(ship.vy, ship.vx);
+        let diff = target - ship.angle;
+        while (diff > Math.PI) diff -= Math.PI*2;
+        while (diff < -Math.PI) diff += Math.PI*2;
         ship.angle += diff * 0.2;
     }
 
@@ -412,13 +437,11 @@ function update(dt) {
     camera.targetY = Math.max(0, Math.min(maxCamY, camera.targetY));
 }
 
-// === РИСОВАНИЕ ИКОНОК ===
+// === ИКОНКИ ===
 function drawIcon(x, y, size, type, color) {
     ctx.save();
     ctx.translate(x, y);
-
     if (type === 'ore') {
-        // Кристалл / руда
         ctx.fillStyle = color;
         ctx.beginPath();
         ctx.moveTo(0, -size*0.45);
@@ -438,11 +461,9 @@ function drawIcon(x, y, size, type, color) {
     } else if (type === 'sand') {
         ctx.fillStyle = color;
         for (let i = 0; i < 5; i++) {
-            const ox = (Math.sin(i*2.1)*0.3) * size;
-            const oy = (Math.cos(i*1.7)*0.25) * size;
-            ctx.beginPath();
-            ctx.arc(ox, oy, size*0.18, 0, Math.PI*2);
-            ctx.fill();
+            const ox = Math.sin(i*2.1)*0.3 * size;
+            const oy = Math.cos(i*1.7)*0.25 * size;
+            ctx.beginPath(); ctx.arc(ox, oy, size*0.18, 0, Math.PI*2); ctx.fill();
         }
     } else if (type === 'ingot') {
         ctx.fillStyle = color;
@@ -450,19 +471,12 @@ function drawIcon(x, y, size, type, color) {
         ctx.fillStyle = 'rgba(255,255,255,0.2)';
         ctx.fillRect(-size*0.35, -size*0.25, size*0.7, size*0.12);
     } else if (type === 'glass') {
-        ctx.fillStyle = color;
-        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = color; ctx.globalAlpha = 0.85;
         ctx.beginPath();
-        ctx.moveTo(0, -size*0.4);
-        ctx.lineTo(size*0.35, size*0.15);
-        ctx.lineTo(0, size*0.4);
-        ctx.lineTo(-size*0.35, size*0.15);
-        ctx.closePath();
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = 'rgba(100,180,220,0.6)';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
+        ctx.moveTo(0, -size*0.4); ctx.lineTo(size*0.35, size*0.15);
+        ctx.lineTo(0, size*0.4); ctx.lineTo(-size*0.35, size*0.15);
+        ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+        ctx.strokeStyle = 'rgba(100,180,220,0.6)'; ctx.lineWidth = 1.5; ctx.stroke();
     } else if (type === 'fabric') {
         ctx.fillStyle = color;
         ctx.beginPath();
@@ -470,73 +484,49 @@ function drawIcon(x, y, size, type, color) {
         ctx.quadraticCurveTo(0, -size*0.5, size*0.4, -size*0.3);
         ctx.lineTo(size*0.35, size*0.35);
         ctx.quadraticCurveTo(0, size*0.2, -size*0.35, size*0.35);
-        ctx.closePath();
-        ctx.fill();
+        ctx.closePath(); ctx.fill();
     } else if (type === 'spore') {
         ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, size*0.35, size*0.45, 0, 0, Math.PI*2);
-        ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0, 0, size*0.35, size*0.45, 0, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.beginPath();
-        ctx.ellipse(0, size*0.1, size*0.2, size*0.25, 0, 0, Math.PI*2);
-        ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0, size*0.1, size*0.2, size*0.25, 0, 0, Math.PI*2); ctx.fill();
     } else if (type === 'powder') {
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.moveTo(-size*0.35, size*0.3);
-        ctx.lineTo(-size*0.2, -size*0.25);
-        ctx.lineTo(size*0.2, -size*0.25);
-        ctx.lineTo(size*0.35, size*0.3);
-        ctx.closePath();
-        ctx.fill();
+        ctx.moveTo(-size*0.35, size*0.3); ctx.lineTo(-size*0.2, -size*0.25);
+        ctx.lineTo(size*0.2, -size*0.25); ctx.lineTo(size*0.35, size*0.3);
+        ctx.closePath(); ctx.fill();
         ctx.fillStyle = 'rgba(255,255,255,0.15)';
         ctx.fillRect(-size*0.15, -size*0.2, size*0.3, size*0.12);
     }
-
     ctx.restore();
 }
 
-// === ОТРИСОВКА ИНВЕНТАРЯ ===
 function drawInventory() {
     if (!showInventory) return;
-
     const panelW = Math.min(210, VIEW_W * 0.42);
-    const rowH = 28;
-    const padding = 10;
-    const titleH = 28;
+    const rowH = 28, padding = 10, titleH = 28;
     const panelH = titleH + RESOURCES.length * rowH + padding * 2;
+    const px = 12, py = 70;
 
-    const px = 12;
-    const py = 70;
-
-    // Фон
     ctx.fillStyle = 'rgba(10,10,15,0.88)';
     ctx.fillRect(px, py, panelW, panelH);
     ctx.strokeStyle = 'rgba(255,140,0,0.4)';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(px, py, panelW, panelH);
 
-    // Заголовок
     ctx.fillStyle = '#ff8c00';
     ctx.font = 'bold 13px system-ui';
     ctx.fillText('ИНВЕНТАРЬ', px + padding, py + 20);
 
-    // Список
     ctx.font = '12px system-ui';
     RESOURCES.forEach((res, i) => {
         const ry = py + titleH + padding + i * rowH;
         const amount = inventory[res.id] || 0;
-
-        // Иконка
         drawIcon(px + padding + 12, ry + rowH/2 - 2, 16, res.icon, res.color);
-
-        // Название
         ctx.fillStyle = '#ddd';
         ctx.textAlign = 'left';
         ctx.fillText(res.name, px + padding + 30, ry + 17);
-
-        // Количество
         ctx.fillStyle = amount > 0 ? '#ffcc66' : '#666';
         ctx.textAlign = 'right';
         ctx.fillText(String(amount), px + panelW - padding, ry + 17);
@@ -556,14 +546,17 @@ function draw() {
     for (let y = startTY; y < endTY; y++) {
         for (let x = startTX; x < endTX; x++) {
             const type = map[y][x];
+            const ore = oreMap[y][x];
             const sx = x * TILE - camera.x;
             const sy = y * TILE - camera.y;
 
+            // Базовый террейн
             ctx.fillStyle = COLORS[type];
             ctx.fillRect(sx, sy, TILE + 0.5, TILE + 0.5);
 
+            // Детали террейна
             if (type === BLOCK.DIRT || type === BLOCK.FERTILE) {
-                ctx.fillStyle = type === BLOCK.FERTILE ? 'rgba(80,120,40,0.25)' : 'rgba(0,0,0,0.12)';
+                ctx.fillStyle = type === BLOCK.FERTILE ? 'rgba(80,120,40,0.2)' : 'rgba(0,0,0,0.12)';
                 ctx.fillRect(sx + 2, sy + 2, TILE - 4, TILE - 4);
             }
             if (type === BLOCK.WATER) {
@@ -575,13 +568,36 @@ function draw() {
                 ctx.lineWidth = 1;
                 ctx.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
             }
+
+            // === РУДА поверх ===
+            if (ore !== ORE.NONE) {
+                const oc = ORE_COLORS[ore];
+                // Основной цвет руды
+                ctx.fillStyle = oc;
+                ctx.globalAlpha = 0.85;
+                ctx.fillRect(sx + 1, sy + 1, TILE - 2, TILE - 2);
+                ctx.globalAlpha = 1;
+
+                // Блики / кристаллическая структура
+                ctx.fillStyle = 'rgba(255,255,255,0.22)';
+                ctx.beginPath();
+                ctx.moveTo(sx + 3, sy + 3);
+                ctx.lineTo(sx + TILE - 5, sy + 4);
+                ctx.lineTo(sx + 4, sy + TILE - 6);
+                ctx.closePath();
+                ctx.fill();
+
+                // Тёмные края
+                ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(sx + 1.5, sy + 1.5, TILE - 3, TILE - 3);
+            }
         }
     }
 
     // Корабль
     const sx = ship.x * TILE - camera.x;
     const sy = ship.y * TILE - camera.y;
-
     ctx.save();
     ctx.translate(sx, sy);
     ctx.rotate(ship.angle);
@@ -589,37 +605,33 @@ function draw() {
     ctx.fillStyle = '#6a6a6a';
     ctx.beginPath();
     ctx.moveTo(ship.size, 0);
-    ctx.lineTo(-ship.size * 0.7, -ship.size * 0.55);
-    ctx.lineTo(-ship.size * 0.4, 0);
-    ctx.lineTo(-ship.size * 0.7, ship.size * 0.55);
+    ctx.lineTo(-ship.size*0.7, -ship.size*0.55);
+    ctx.lineTo(-ship.size*0.4, 0);
+    ctx.lineTo(-ship.size*0.7, ship.size*0.55);
     ctx.closePath();
     ctx.fill();
 
     ctx.fillStyle = '#ff8c00';
     ctx.beginPath();
-    ctx.moveTo(ship.size * 0.85, 0);
-    ctx.lineTo(ship.size * 0.2, -ship.size * 0.25);
-    ctx.lineTo(ship.size * 0.2, ship.size * 0.25);
+    ctx.moveTo(ship.size*0.85, 0);
+    ctx.lineTo(ship.size*0.2, -ship.size*0.25);
+    ctx.lineTo(ship.size*0.2, ship.size*0.25);
     ctx.closePath();
     ctx.fill();
 
     ctx.fillStyle = '#222';
-    ctx.beginPath();
-    ctx.arc(ship.size * 0.15, 0, 3.2, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(ship.size*0.15, 0, 3.2, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#ffaa44';
-    ctx.beginPath();
-    ctx.arc(ship.size * 0.15, 0, 1.8, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(ship.size*0.15, 0, 1.8, 0, Math.PI*2); ctx.fill();
 
     const spd = Math.sqrt(ship.vx*ship.vx + ship.vy*ship.vy);
     if (spd > 0.25) {
         ctx.fillStyle = '#ff4400';
-        ctx.globalAlpha = 0.55 + Math.random() * 0.4;
+        ctx.globalAlpha = 0.55 + Math.random()*0.4;
         ctx.beginPath();
-        ctx.moveTo(-ship.size * 0.55, -3.5);
-        ctx.lineTo(-ship.size * 0.55 - 6 - Math.random()*4, 0);
-        ctx.lineTo(-ship.size * 0.55, 3.5);
+        ctx.moveTo(-ship.size*0.55, -3.5);
+        ctx.lineTo(-ship.size*0.55 - 6 - Math.random()*4, 0);
+        ctx.lineTo(-ship.size*0.55, 3.5);
         ctx.closePath();
         ctx.fill();
         ctx.globalAlpha = 1;
@@ -639,25 +651,22 @@ function draw() {
 
     for (let y = 0; y < MAP_SIZE; y += 2) {
         for (let x = 0; x < MAP_SIZE; x += 2) {
-            ctx.fillStyle = COLORS[map[y][x]];
-            ctx.fillRect(mx + x * miniScale, my + y * miniScale, miniScale * 2 + 0.5, miniScale * 2 + 0.5);
+            let col = COLORS[map[y][x]];
+            if (oreMap[y][x] !== ORE.NONE) col = ORE_COLORS[oreMap[y][x]];
+            ctx.fillStyle = col;
+            ctx.fillRect(mx + x*miniScale, my + y*miniScale, miniScale*2+0.5, miniScale*2+0.5);
         }
     }
     ctx.fillStyle = '#ff8c00';
     ctx.beginPath();
-    ctx.arc(mx + ship.x * miniScale, my + ship.y * miniScale, 3, 0, Math.PI*2);
+    ctx.arc(mx + ship.x*miniScale, my + ship.y*miniScale, 3, 0, Math.PI*2);
     ctx.fill();
 
     ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(
-        mx + (camera.x / TILE) * miniScale,
-        my + (camera.y / TILE) * miniScale,
-        (VIEW_W / TILE) * miniScale,
-        (VIEW_H / TILE) * miniScale
-    );
+    ctx.strokeRect(mx + (camera.x/TILE)*miniScale, my + (camera.y/TILE)*miniScale,
+                   (VIEW_W/TILE)*miniScale, (VIEW_H/TILE)*miniScale);
 
-    // Инвентарь
     drawInventory();
 }
 
