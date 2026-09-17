@@ -11,18 +11,16 @@ html,body{width:100%;height:100%;background:#0a0a0a;color:#eee;font-family:syste
 h1{font-size:1rem;color:#ff8c00;text-shadow:0 0 12px rgba(255,140,0,.6);margin-bottom:2px}
 .info{font-size:.65rem;color:#aaa;line-height:1.3}
 canvas{display:block;width:100%;height:100%;background:#0a0a0a}
-#regen-btn,#inv-toggle{position:absolute;bottom:12px;z-index:30;background:rgba(255,140,0,.2);border:1px solid #ff8c00;color:#ff8c00;padding:8px 12px;border-radius:8px;font-size:.75rem;pointer-events:auto;user-select:none}
-#regen-btn{right:12px}#inv-toggle{left:12px}
-#regen-btn:active,#inv-toggle:active{background:rgba(255,140,0,.4)}
+#regen-btn{position:absolute;bottom:12px;right:12px;z-index:30;background:rgba(255,140,0,.2);border:1px solid #ff8c00;color:#ff8c00;padding:8px 12px;border-radius:8px;font-size:.75rem;pointer-events:auto;user-select:none}
+#regen-btn:active{background:rgba(255,140,0,.4)}
 </style>
 </head>
 <body>
 <div id="ui">
 <h1>🚀 Космический набросок</h1>
-<div class="info">Дабл-клик — добыча · Песок с плодородной · Строительство внизу справа</div>
+<div class="info">Клик по ядру — склад · Груз на корабле · Призрак + ✓ · Стрелка — поворот</div>
 </div>
 <canvas id="game"></canvas>
-<button id="inv-toggle">📦 Инвентарь</button>
 <button id="regen-btn">🔄 Новая карта</button>
 
 <script>
@@ -32,7 +30,6 @@ let VIEW_W=0,VIEW_H=0;
 function resize(){VIEW_W=window.innerWidth;VIEW_H=window.innerHeight;canvas.width=VIEW_W*devicePixelRatio;canvas.height=VIEW_H*devicePixelRatio;canvas.style.width=VIEW_W+'px';canvas.style.height=VIEW_H+'px';ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}
 window.addEventListener('resize',resize);resize();
 
-// === CONST ===
 const MAP_SIZE=160,TILE=16,CORE_RANGE=20,PLAYER_MAX=30;
 const BLOCK={WALL:0,DIRT:1,FERTILE:2,WATER:3,CORE:4};
 const COLORS={[BLOCK.WALL]:'#555',[BLOCK.DIRT]:'#8B5A2B',[BLOCK.FERTILE]:'#5C4033',[BLOCK.WATER]:'#1E90FF',[BLOCK.CORE]:'#2a2a3a'};
@@ -40,54 +37,43 @@ const ORE={NONE:0,COPPER:1,LEAD:2,COAL:3,TITANIUM:4,THORIUM:5,METALOM:6};
 const ORE_COLORS={[ORE.COPPER]:'#d99d73',[ORE.LEAD]:'#8c7fa9',[ORE.COAL]:'#1a1a1a',[ORE.TITANIUM]:'#8da1b0',[ORE.THORIUM]:'#f9a3c7',[ORE.METALOM]:'#6e6e6e'};
 const ORE_TO_ID={[ORE.COPPER]:'copper',[ORE.LEAD]:'lead',[ORE.COAL]:'coal',[ORE.TITANIUM]:'titanium',[ORE.THORIUM]:'thorium',[ORE.METALOM]:'metalom'};
 const PLAYER_FORBIDDEN=new Set([ORE.TITANIUM,ORE.THORIUM]);
-
-// Directions
 const DIR={RIGHT:0,DOWN:1,LEFT:2,UP:3};
 const DIR_DX=[1,0,-1,0],DIR_DY=[0,1,0,-1];
+const DIR_ARROW=['→','↓','←','↑'];
 
-// === BUILDINGS ===
-const BTYPE={
-  CONVEYOR:1, TITANIUM_CONVEYOR:2, PLASTANIUM_CONVEYOR:3,
-  JUNCTION:4, BRIDGE:5, PHASE_BRIDGE:6,
-  ROUTER:7, SORTER:8, INV_SORTER:9,
-  GATE:10, INV_GATE:11, DISTRIBUTOR:12, UNLOADER:13
-};
-
+const BTYPE={CONVEYOR:1,TITANIUM_CONVEYOR:2,PLASTANIUM_CONVEYOR:3,JUNCTION:4,BRIDGE:5,PHASE_BRIDGE:6,ROUTER:7,SORTER:8,INV_SORTER:9,GATE:10,INV_GATE:11,DISTRIBUTOR:12,UNLOADER:13};
 const BUILDING_DEFS={
-  [BTYPE.CONVEYOR]:          {name:'Конвейер',size:1,color:'#8a8a8a',speed:0.08},
-  [BTYPE.TITANIUM_CONVEYOR]: {name:'Титан. конвейер',size:1,color:'#8da1b0',speed:0.16},
-  [BTYPE.PLASTANIUM_CONVEYOR]:{name:'Пластан. конвейер',size:1,color:'#9eff7a',speed:0.06,batch:10},
-  [BTYPE.JUNCTION]:          {name:'Перекресток',size:1,color:'#666'},
-  [BTYPE.BRIDGE]:            {name:'Мост',size:1,color:'#a08040',range:3},
-  [BTYPE.PHASE_BRIDGE]:      {name:'Фазовый мост',size:1,color:'#c77dff',range:15},
-  [BTYPE.ROUTER]:            {name:'Маршрутизатор',size:1,color:'#cc8844'},
-  [BTYPE.SORTER]:            {name:'Сортировщик',size:1,color:'#44aa88'},
-  [BTYPE.INV_SORTER]:        {name:'Инв. сортировщик',size:1,color:'#aa4488'},
-  [BTYPE.GATE]:              {name:'Затвор',size:1,color:'#888844'},
-  [BTYPE.INV_GATE]:          {name:'Инв. затвор',size:1,color:'#884488'},
-  [BTYPE.DISTRIBUTOR]:       {name:'Распределитель',size:2,color:'#cc8844'},
-  [BTYPE.UNLOADER]:          {name:'Разгрузчик',size:1,color:'#6ab0ff'}
+  [BTYPE.CONVEYOR]:{name:'Конвейер',size:1,color:'#8a8a8a',speed:.08,directional:true},
+  [BTYPE.TITANIUM_CONVEYOR]:{name:'Титан. конв.',size:1,color:'#8da1b0',speed:.16,directional:true},
+  [BTYPE.PLASTANIUM_CONVEYOR]:{name:'Пластан. конв.',size:1,color:'#9eff7a',speed:.06,batch:10,directional:true},
+  [BTYPE.JUNCTION]:{name:'Перекресток',size:1,color:'#666',directional:false},
+  [BTYPE.BRIDGE]:{name:'Мост',size:1,color:'#a08040',range:3,directional:true},
+  [BTYPE.PHASE_BRIDGE]:{name:'Фаз. мост',size:1,color:'#c77dff',range:15,directional:true},
+  [BTYPE.ROUTER]:{name:'Маршрутизатор',size:1,color:'#cc8844',directional:false},
+  [BTYPE.SORTER]:{name:'Сортировщик',size:1,color:'#44aa88',directional:true},
+  [BTYPE.INV_SORTER]:{name:'Инв. сортир.',size:1,color:'#aa4488',directional:true},
+  [BTYPE.GATE]:{name:'Затвор',size:1,color:'#888844',directional:true},
+  [BTYPE.INV_GATE]:{name:'Инв. затвор',size:1,color:'#884488',directional:true},
+  [BTYPE.DISTRIBUTOR]:{name:'Распределитель',size:2,color:'#cc8844',directional:false},
+  [BTYPE.UNLOADER]:{name:'Разгрузчик',size:1,color:'#6ab0ff',directional:true}
 };
 
-// Categories for build menu (8 slots)
-// Layout: left/right columns, 4 rows
 const CATEGORIES=[
-  {id:'util',   name:'Утилиты',     side:'left',  row:0, blocks:[]},
-  {id:'logic',  name:'Логика',      side:'right', row:0, blocks:[]},
-  {id:'power',  name:'Энергия',     side:'left',  row:1, blocks:[]},
-  {id:'walls',  name:'Стены',       side:'right', row:1, blocks:[]},
-  {id:'transport',name:'Транспорт', side:'left',  row:2, blocks:[
+  {id:'util',name:'Утилиты',side:'left',row:0,blocks:[]},
+  {id:'logic',name:'Логика',side:'right',row:0,blocks:[]},
+  {id:'power',name:'Энергия',side:'left',row:1,blocks:[]},
+  {id:'walls',name:'Стены',side:'right',row:1,blocks:[]},
+  {id:'transport',name:'Транспорт',side:'left',row:2,blocks:[
     BTYPE.CONVEYOR,BTYPE.TITANIUM_CONVEYOR,BTYPE.PLASTANIUM_CONVEYOR,
     BTYPE.JUNCTION,BTYPE.BRIDGE,BTYPE.PHASE_BRIDGE,
     BTYPE.ROUTER,BTYPE.SORTER,BTYPE.INV_SORTER,
     BTYPE.GATE,BTYPE.INV_GATE,BTYPE.DISTRIBUTOR,BTYPE.UNLOADER
   ]},
-  {id:'liquid', name:'Жидкости',    side:'right', row:2, blocks:[]},
-  {id:'turret', name:'Турели',      side:'left',  row:3, blocks:[]},
-  {id:'drill',  name:'Буры',        side:'right', row:3, blocks:[]}
+  {id:'liquid',name:'Жидкости',side:'right',row:2,blocks:[]},
+  {id:'turret',name:'Турели',side:'left',row:3,blocks:[]},
+  {id:'drill',name:'Буры',side:'right',row:3,blocks:[]}
 ];
 
-// === RESOURCES ===
 const RESOURCES=[
   {id:'copper',name:'Медь',color:'#d99d73',icon:'ore'},
   {id:'lead',name:'Свинец',color:'#8c7fa9',icon:'ore'},
@@ -108,141 +94,44 @@ const RESOURCES=[
 ];
 const coreInventory={};RESOURCES.forEach(r=>coreInventory[r.id]=0);
 const shipCargo={type:null,amount:0};
-let showInventory=true;
+let showCoreInv=false;
 
-// === STATE ===
-let map=[],oreMap=[],buildMap=[]; // buildMap[y][x] = {type,dir,config,...} or null
+let map=[],oreMap=[],buildMap=[],items=[];
 let core={x:0,y:0};
-let items=[]; // floating items on conveyors {x,y,type,progress,fromDir}
 
-// Build UI state
-let buildMode='none'; // 'none' | 'place' | 'delete'
+// Build state
+let buildMode='none'; // none | place | delete
 let selectedCategory=null;
 let selectedBlock=null;
 let selectedDir=DIR.RIGHT;
-let selectedConfig=null; // for sorter etc
+let selectedConfig=null;
+let blockScroll=0; // scroll offset for block list
 
-// === MAP GEN ===
+// Ghost placement
+let ghost={active:false,x:0,y:0,type:null,dir:DIR.RIGHT};
+
 function generateMap(){
-  map=[];oreMap=[];buildMap=[];items=[];
-  for(let y=0;y<MAP_SIZE;y++){
-    map[y]=[];oreMap[y]=[];buildMap[y]=[];
-    for(let x=0;x<MAP_SIZE;x++){
-      map[y][x]=BLOCK.DIRT;oreMap[y][x]=ORE.NONE;buildMap[y][x]=null;
-    }
-  }
-  for(let i=0;i<MAP_SIZE;i++) map[0][i]=map[MAP_SIZE-1][i]=map[i][0]=map[i][MAP_SIZE-1]=BLOCK.WALL;
-
-  // lakes
-  for(let l=0;l<12+Math.random()*8;l++){
-    const cx=12+Math.floor(Math.random()*(MAP_SIZE-24)),cy=12+Math.floor(Math.random()*(MAP_SIZE-24));
-    const r=5+Math.floor(Math.random()*11);
-    for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){
-      if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;
-      if(Math.sqrt((x-cx)**2+(y-cy)**2)<r-Math.random()*2.8)map[y][x]=BLOCK.WATER;
-    }
-  }
-  // fertile
-  for(let f=0;f<16+Math.random()*10;f++){
-    const cx=10+Math.floor(Math.random()*(MAP_SIZE-20)),cy=10+Math.floor(Math.random()*(MAP_SIZE-20));
-    const r=6+Math.floor(Math.random()*12);
-    for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){
-      if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1||map[y][x]===BLOCK.WATER)continue;
-      if(Math.sqrt((x-cx)**2+(y-cy)**2)<r-Math.random()*3.5)map[y][x]=BLOCK.FERTILE;
-    }
-  }
-  // walls
-  for(let w=0;w<18+Math.random()*12;w++){
-    const cx=8+Math.floor(Math.random()*(MAP_SIZE-16)),cy=8+Math.floor(Math.random()*(MAP_SIZE-16));
-    const r=2+Math.floor(Math.random()*6);
-    for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){
-      if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;
-      if(Math.sqrt((x-cx)**2+(y-cy)**2)<r-Math.random()*2)map[y][x]=BLOCK.WALL;
-    }
-  }
-  // smooth
-  for(let p=0;p<3;p++){
-    const nm=map.map(r=>r.slice());
-    for(let y=1;y<MAP_SIZE-1;y++)for(let x=1;x<MAP_SIZE-1;x++){
-      let wn=0,fn=0,wn2=0;
-      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
-        if(!dx&&!dy)continue;
-        const t=map[y+dy][x+dx];
-        if(t===BLOCK.WATER)wn++;else if(t===BLOCK.FERTILE)fn++;else if(t===BLOCK.WALL)wn2++;
-      }
-      const c=map[y][x];
-      if(c===BLOCK.WATER&&wn<3)nm[y][x]=BLOCK.DIRT;
-      else if(c!==BLOCK.WATER&&wn>=5&&Math.random()<.4)nm[y][x]=BLOCK.WATER;
-      else if(c===BLOCK.WALL&&wn2<2)nm[y][x]=BLOCK.DIRT;
-      else if(c===BLOCK.FERTILE&&fn<2)nm[y][x]=BLOCK.DIRT;
-    }
-    map=nm;
-  }
+  map=[];oreMap=[];buildMap=[];items=[];showCoreInv=false;ghost.active=false;
+  for(let y=0;y<MAP_SIZE;y++){map[y]=[];oreMap[y]=[];buildMap[y]=[];for(let x=0;x<MAP_SIZE;x++){map[y][x]=BLOCK.DIRT;oreMap[y][x]=ORE.NONE;buildMap[y][x]=null}}
   for(let i=0;i<MAP_SIZE;i++)map[0][i]=map[MAP_SIZE-1][i]=map[i][0]=map[i][MAP_SIZE-1]=BLOCK.WALL;
-
-  // core
-  let placed=false;
-  for(let a=0;a<200;a++){
-    const cx=Math.floor(MAP_SIZE/2+(Math.random()-.5)*30),cy=Math.floor(MAP_SIZE/2+(Math.random()-.5)*30);
-    let ok=true;
-    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
-      const tx=cx+dx,ty=cy+dy;
-      if(tx<=0||ty<=0||tx>=MAP_SIZE-1||ty>=MAP_SIZE-1||map[ty][tx]===BLOCK.WATER||map[ty][tx]===BLOCK.WALL){ok=false;break}
-    }
-    if(ok){core.x=cx;core.y=cy;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)map[cy+dy][cx+dx]=BLOCK.CORE;placed=true;break}
-  }
-  if(!placed){core.x=Math.floor(MAP_SIZE/2);core.y=Math.floor(MAP_SIZE/2);for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)map[core.y+dy][core.x+dx]=BLOCK.CORE}
-
-  // ores
-  const oreTypes=[
-    {type:ORE.COPPER,count:12,minR:3,maxR:6},{type:ORE.LEAD,count:10,minR:3,maxR:6},
-    {type:ORE.COAL,count:14,minR:3,maxR:7},{type:ORE.TITANIUM,count:7,minR:2,maxR:5},
-    {type:ORE.THORIUM,count:5,minR:2,maxR:4},{type:ORE.METALOM,count:8,minR:2,maxR:5}
-  ];
-  const centers=[];
-  for(const ore of oreTypes){
-    let pl=0,att=0;
-    while(pl<ore.count&&att<ore.count*30){
-      att++;
-      const cx=10+Math.floor(Math.random()*(MAP_SIZE-20)),cy=10+Math.floor(Math.random()*(MAP_SIZE-20));
-      const radius=ore.minR+Math.floor(Math.random()*(ore.maxR-ore.minR+1));
-      if(centers.some(p=>Math.sqrt((cx-p.x)**2+(cy-p.y)**2)<radius+p.r+3))continue;
-      if(Math.abs(cx-core.x)<radius+3&&Math.abs(cy-core.y)<radius+3)continue;
-      let free=0,tot=0;
-      for(let y=cy-radius;y<=cy+radius;y++)for(let x=cx-radius;x<=cx+radius;x++){
-        if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;
-        if(Math.sqrt((x-cx)**2+(y-cy)**2)>radius)continue;
-        tot++;if(oreMap[y][x]===ORE.NONE&&(map[y][x]===BLOCK.DIRT||map[y][x]===BLOCK.FERTILE))free++;
-      }
-      if(tot===0||free/tot<.55)continue;
-      for(let y=cy-radius;y<=cy+radius;y++)for(let x=cx-radius;x<=cx+radius;x++){
-        if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;
-        if(map[y][x]!==BLOCK.DIRT&&map[y][x]!==BLOCK.FERTILE)continue;
-        if(oreMap[y][x]!==ORE.NONE)continue;
-        if(Math.sqrt((x-cx)**2+(y-cy)**2)<radius-Math.random()*1.8)oreMap[y][x]=ore.type;
-      }
-      centers.push({x:cx,y:cy,r:radius});pl++;
-    }
-  }
-  RESOURCES.forEach(r=>coreInventory[r.id]=0);
-  shipCargo.type=null;shipCargo.amount=0;
+  for(let l=0;l<12+Math.random()*8;l++){const cx=12+Math.floor(Math.random()*(MAP_SIZE-24)),cy=12+Math.floor(Math.random()*(MAP_SIZE-24)),r=5+Math.floor(Math.random()*11);for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;if(Math.sqrt((x-cx)**2+(y-cy)**2)<r-Math.random()*2.8)map[y][x]=BLOCK.WATER}}
+  for(let f=0;f<16+Math.random()*10;f++){const cx=10+Math.floor(Math.random()*(MAP_SIZE-20)),cy=10+Math.floor(Math.random()*(MAP_SIZE-20)),r=6+Math.floor(Math.random()*12);for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1||map[y][x]===BLOCK.WATER)continue;if(Math.sqrt((x-cx)**2+(y-cy)**2)<r-Math.random()*3.5)map[y][x]=BLOCK.FERTILE}}
+  for(let w=0;w<18+Math.random()*12;w++){const cx=8+Math.floor(Math.random()*(MAP_SIZE-16)),cy=8+Math.floor(Math.random()*(MAP_SIZE-16)),r=2+Math.floor(Math.random()*6);for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;if(Math.sqrt((x-cx)**2+(y-cy)**2)<r-Math.random()*2)map[y][x]=BLOCK.WALL}}
+  for(let p=0;p<3;p++){const nm=map.map(r=>r.slice());for(let y=1;y<MAP_SIZE-1;y++)for(let x=1;x<MAP_SIZE-1;x++){let wn=0,fn=0,wn2=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const t=map[y+dy][x+dx];if(t===BLOCK.WATER)wn++;else if(t===BLOCK.FERTILE)fn++;else if(t===BLOCK.WALL)wn2++}const c=map[y][x];if(c===BLOCK.WATER&&wn<3)nm[y][x]=BLOCK.DIRT;else if(c!==BLOCK.WATER&&wn>=5&&Math.random()<.4)nm[y][x]=BLOCK.WATER;else if(c===BLOCK.WALL&&wn2<2)nm[y][x]=BLOCK.DIRT;else if(c===BLOCK.FERTILE&&fn<2)nm[y][x]=BLOCK.DIRT}map=nm}
+  for(let i=0;i<MAP_SIZE;i++)map[0][i]=map[MAP_SIZE-1][i]=map[i][0]=map[i][MAP_SIZE-1]=BLOCK.WALL;
+  let placed=false;for(let a=0;a<200;a++){const cx=Math.floor(MAP_SIZE/2+(Math.random()-.5)*30),cy=Math.floor(MAP_SIZE/2+(Math.random()-.5)*30);let ok=true;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const tx=cx+dx,ty=cy+dy;if(tx<=0||ty<=0||tx>=MAP_SIZE-1||ty>=MAP_SIZE-1||map[ty][tx]===BLOCK.WATER||map[ty][tx]===BLOCK.WALL){ok=false;break}}if(ok){core.x=cx;core.y=cy;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)map[cy+dy][cx+dx]=BLOCK.CORE;placed=true;break}}if(!placed){core.x=Math.floor(MAP_SIZE/2);core.y=Math.floor(MAP_SIZE/2);for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)map[core.y+dy][core.x+dx]=BLOCK.CORE}
+  const oreTypes=[{type:ORE.COPPER,count:12,minR:3,maxR:6},{type:ORE.LEAD,count:10,minR:3,maxR:6},{type:ORE.COAL,count:14,minR:3,maxR:7},{type:ORE.TITANIUM,count:7,minR:2,maxR:5},{type:ORE.THORIUM,count:5,minR:2,maxR:4},{type:ORE.METALOM,count:8,minR:2,maxR:5}];
+  const centers=[];for(const ore of oreTypes){let pl=0,att=0;while(pl<ore.count&&att<ore.count*30){att++;const cx=10+Math.floor(Math.random()*(MAP_SIZE-20)),cy=10+Math.floor(Math.random()*(MAP_SIZE-20)),radius=ore.minR+Math.floor(Math.random()*(ore.maxR-ore.minR+1));if(centers.some(p=>Math.sqrt((cx-p.x)**2+(cy-p.y)**2)<radius+p.r+3))continue;if(Math.abs(cx-core.x)<radius+3&&Math.abs(cy-core.y)<radius+3)continue;let free=0,tot=0;for(let y=cy-radius;y<=cy+radius;y++)for(let x=cx-radius;x<=cx+radius;x++){if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;if(Math.sqrt((x-cx)**2+(y-cy)**2)>radius)continue;tot++;if(oreMap[y][x]===ORE.NONE&&(map[y][x]===BLOCK.DIRT||map[y][x]===BLOCK.FERTILE))free++}if(tot===0||free/tot<.55)continue;for(let y=cy-radius;y<=cy+radius;y++)for(let x=cx-radius;x<=cx+radius;x++){if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;if(map[y][x]!==BLOCK.DIRT&&map[y][x]!==BLOCK.FERTILE)continue;if(oreMap[y][x]!==ORE.NONE)continue;if(Math.sqrt((x-cx)**2+(y-cy)**2)<radius-Math.random()*1.8)oreMap[y][x]=ore.type}centers.push({x:cx,y:cy,r:radius});pl++}}
+  RESOURCES.forEach(r=>coreInventory[r.id]=0);shipCargo.type=null;shipCargo.amount=0;
 }
 
-// === SHIP ===
 const ship={x:0,y:0,angle:-Math.PI/2,vx:0,vy:0,maxSpeed:2.4,accel:.12,friction:.95,size:13,homeForce:.035};
 const camera={x:0,y:0,targetX:0,targetY:0};
-
-// === INPUT ===
 const keys={};
 let lastClickTime=0,lastClickTile=null;
-let isDraggingCamera=false,lastTouchX=0,lastTouchY=0,dragStartX=0,dragStartY=0,didDrag=false,isDraggingCargo=false;
+let isDraggingCamera=false,lastTouchX=0,lastTouchY=0,dragStartX=0,dragStartY=0,didDrag=false;
 
-window.addEventListener('keydown',e=>{
-  keys[e.code]=true;
-  if(e.code==='Space'){e.preventDefault();generateMap();spawnShip()}
-  if(e.code==='KeyI')showInventory=!showInventory;
-  if(e.code==='KeyR')selectedDir=(selectedDir+1)%4;
-});
+window.addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='Space'){e.preventDefault();generateMap();spawnShip()}if(e.code==='KeyR'&&selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional)selectedDir=(selectedDir+1)%4});
 window.addEventListener('keyup',e=>keys[e.code]=false);
 
 function getTileFromScreen(sx,sy){return{x:Math.floor((sx+camera.x)/TILE),y:Math.floor((sy+camera.y)/TILE)}}
@@ -252,100 +141,83 @@ function tryMine(tx,ty){
   const ore=oreMap[ty][tx];
   const dist=Math.sqrt((tx-core.x)**2+(ty-core.y)**2);
   const inCore=dist<=CORE_RANGE;
-
-  // Sand from fertile without ore
   if(ore===ORE.NONE&&map[ty][tx]===BLOCK.FERTILE){
     if(inCore)coreInventory.sand=(coreInventory.sand||0)+1;
-    else if(shipCargo.type===null||shipCargo.type==='sand'){
-      if(shipCargo.amount<PLAYER_MAX){shipCargo.type='sand';shipCargo.amount++}
-    }
+    else if((shipCargo.type===null||shipCargo.type==='sand')&&shipCargo.amount<PLAYER_MAX){shipCargo.type='sand';shipCargo.amount++}
     return;
   }
-
-  if(ore===ORE.NONE)return;
-  if(PLAYER_FORBIDDEN.has(ore))return; // titanium & thorium forbidden completely
-
-  const resId=ORE_TO_ID[ore];
-  if(!resId)return;
-
+  if(ore===ORE.NONE||PLAYER_FORBIDDEN.has(ore))return;
+  const resId=ORE_TO_ID[ore];if(!resId)return;
   if(inCore)coreInventory[resId]=(coreInventory[resId]||0)+1;
-  else if(shipCargo.type===null||shipCargo.type===resId){
-    if(shipCargo.amount<PLAYER_MAX){shipCargo.type=resId;shipCargo.amount++}
-  }
+  else if((shipCargo.type===null||shipCargo.type===resId)&&shipCargo.amount<PLAYER_MAX){shipCargo.type=resId;shipCargo.amount++}
 }
 
 function canPlace(tx,ty,type){
-  const def=BUILDING_DEFS[type];
-  if(!def)return false;
-  const s=def.size;
-  for(let dy=0;dy<s;dy++)for(let dx=0;dx<s;dx++){
-    const x=tx+dx,y=ty+dy;
-    if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)return false;
-    if(map[y][x]===BLOCK.WATER||map[y][x]===BLOCK.WALL||map[y][x]===BLOCK.CORE)return false;
-    if(buildMap[y][x])return false;
-  }
+  const def=BUILDING_DEFS[type];if(!def)return false;const s=def.size;
+  for(let dy=0;dy<s;dy++)for(let dx=0;dx<s;dx++){const x=tx+dx,y=ty+dy;if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)return false;if(map[y][x]===BLOCK.WATER||map[y][x]===BLOCK.WALL||map[y][x]===BLOCK.CORE)return false;if(buildMap[y][x])return false}
   return true;
 }
 
 function placeBuilding(tx,ty,type,dir){
   if(!canPlace(tx,ty,type))return false;
-  const def=BUILDING_DEFS[type];
-  const s=def.size;
+  const def=BUILDING_DEFS[type];const s=def.size;
   const b={type,dir:dir||DIR.RIGHT,config:selectedConfig,batch:0};
-  for(let dy=0;dy<s;dy++)for(let dx=0;dx<s;dx++){
-    buildMap[ty+dy][tx+dx]= (dx===0&&dy===0)?b:{type:'part',parentX:tx,parentY:ty};
-  }
+  for(let dy=0;dy<s;dy++)for(let dx=0;dx<s;dx++)buildMap[ty+dy][tx+dx]=(dx===0&&dy===0)?b:{type:'part',parentX:tx,parentY:ty};
   return true;
 }
 
 function removeBuilding(tx,ty){
-  const b=buildMap[ty][tx];
-  if(!b)return;
-  let px=tx,py=ty;
-  if(b.type==='part'){px=b.parentX;py=b.parentY}
-  const main=buildMap[py][px];
-  if(!main||main.type==='part')return;
+  const b=buildMap[ty]?.[tx];if(!b)return;
+  let px=tx,py=ty;if(b.type==='part'){px=b.parentX;py=b.parentY}
+  const main=buildMap[py][px];if(!main||main.type==='part')return;
   const s=BUILDING_DEFS[main.type]?.size||1;
   for(let dy=0;dy<s;dy++)for(let dx=0;dx<s;dx++)buildMap[py+dy][px+dx]=null;
 }
 
-// Build menu hit test
-function getBuildMenuHit(mx,my){
+// UI layout constants
+const BTN_H=36,BTN_W=40,GAP=4;
+function getMenuLayout(){
   const menuBottom=VIEW_H-8;
-  const btnH=36,btnW=40,gap=4;
-  const catStartY=menuBottom-btnH*2-gap-8;
+  const modeY=menuBottom-BTN_H;
+  const modeX=VIEW_W-12-BTN_W*2-GAP;
+  const catStartY=menuBottom-BTN_H*2-GAP-8;
+  const catH=4*(BTN_H+GAP);
+  return{menuBottom,modeY,modeX,catStartY,catH};
+}
 
-  // Mode buttons (very bottom right)
-  const modeY=menuBottom-btnH;
-  const modeX=VIEW_W-12-btnW*2-gap;
-  if(my>=modeY&&my<=modeY+btnH){
-    if(mx>=modeX&&mx<=modeX+btnW)return{type:'mode',mode:'delete'};
-    if(mx>=modeX+btnW+gap&&mx<=modeX+btnW*2+gap)return{type:'mode',mode:'place'};
+function getBuildMenuHit(mx,my){
+  const L=getMenuLayout();
+  // Mode buttons
+  if(my>=L.modeY&&my<=L.modeY+BTN_H){
+    if(mx>=L.modeX&&mx<=L.modeX+BTN_W)return{type:'mode',mode:'delete'};
+    if(mx>=L.modeX+BTN_W+GAP&&mx<=L.modeX+BTN_W*2+GAP)return{type:'mode',mode:'place'};
   }
-
-  // Category buttons (8)
+  // Arrow / Confirm buttons (same row as modes, further left when needed)
+  const extraX=L.modeX-BTN_W-GAP;
+  if(my>=L.modeY&&my<=L.modeY+BTN_H){
+    if(ghost.active&&mx>=extraX-BTN_W-GAP&&mx<=extraX-GAP)return{type:'confirm'};
+    if(selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional&&mx>=extraX&&mx<=extraX+BTN_W)return{type:'rotate'};
+  }
+  // Categories
   for(const cat of CATEGORIES){
     const col=cat.side==='left'?0:1;
-    const bx=VIEW_W-12-(2-col)*(btnW+gap);
-    const by=catStartY-cat.row*(btnH+gap);
-    if(mx>=bx&&mx<=bx+btnW&&my>=by&&my<=by+btnH)return{type:'category',cat};
+    const bx=VIEW_W-12-(2-col)*(BTN_W+GAP);
+    const by=L.catStartY-cat.row*(BTN_H+GAP);
+    if(mx>=bx&&mx<=bx+BTN_W&&my>=by&&my<=by+BTN_H)return{type:'category',cat};
   }
-
-  // Block buttons (when category selected) — left of categories
-  if(selectedCategory){
+  // Block list (left of categories, 3 wide, full cat height, scrollable)
+  if(selectedCategory&&selectedCategory.blocks.length){
     const blocks=selectedCategory.blocks;
-    const startX=VIEW_W-12-2*(btnW+gap)-8-Math.ceil(blocks.length/2)*(btnW+gap);
-    blocks.forEach((bt,i)=>{
-      const col=i%2,row=Math.floor(i/2);
-      const bx=startX+col*(btnW+gap);
-      const by=catStartY-row*(btnH+gap);
-      // we'll check outside
-    });
-    for(let i=0;i<blocks.length;i++){
-      const col=i%2,row=Math.floor(i/2);
-      const bx=startX+col*(btnW+gap);
-      const by=catStartY-row*(btnH+gap);
-      if(mx>=bx&&mx<=bx+btnW&&my>=by&&my<=by+btnH)return{type:'block',block:blocks[i]};
+    const listW=3*(BTN_W+GAP)-GAP;
+    const listX=VIEW_W-12-2*(BTN_W+GAP)-8-listW;
+    const listY=L.catStartY-3*(BTN_H+GAP);
+    const listH=4*(BTN_H+GAP)-GAP;
+    if(mx>=listX&&mx<=listX+listW&&my>=listY&&my<=listY+listH){
+      const relY=my-listY+blockScroll;
+      const row=Math.floor(relY/(BTN_H+GAP));
+      const col=Math.floor((mx-listX)/(BTN_W+GAP));
+      const idx=row*3+col;
+      if(idx>=0&&idx<blocks.length&&col>=0&&col<3)return{type:'block',block:blocks[idx]};
     }
   }
   return null;
@@ -353,28 +225,27 @@ function getBuildMenuHit(mx,my){
 
 function handlePointerDown(cx,cy){
   dragStartX=cx;dragStartY=cy;didDrag=false;lastTouchX=cx;lastTouchY=cy;
-
-  // Build menu first
   const hit=getBuildMenuHit(cx,cy);
   if(hit){
     if(hit.type==='mode'){
-      if(hit.mode==='delete'){buildMode=buildMode==='delete'?'none':'delete';selectedBlock=null}
-      else{buildMode=buildMode==='place'?'none':'place'}
+      if(hit.mode==='delete'){buildMode=buildMode==='delete'?'none':'delete';selectedBlock=null;ghost.active=false}
+      else{buildMode=buildMode==='place'?'none':'place';if(buildMode!=='place'){selectedBlock=null;ghost.active=false}}
     }else if(hit.type==='category'){
       selectedCategory=selectedCategory===hit.cat?null:hit.cat;
-      selectedBlock=null;
+      selectedBlock=null;ghost.active=false;blockScroll=0;
       if(selectedCategory)buildMode='place';
     }else if(hit.type==='block'){
-      selectedBlock=hit.block;
-      buildMode='place';
-      selectedDir=DIR.RIGHT;
+      selectedBlock=hit.block;buildMode='place';selectedDir=DIR.RIGHT;ghost.active=false;
+    }else if(hit.type==='rotate'){
+      selectedDir=(selectedDir+1)%4;
+      if(ghost.active)ghost.dir=selectedDir;
+    }else if(hit.type==='confirm'){
+      if(ghost.active){
+        placeBuilding(ghost.x,ghost.y,ghost.type,ghost.dir);
+        ghost.active=false;
+      }
     }
     return;
-  }
-
-  if(shipCargo.amount>0){
-    const panel=getShipCargoPanelRect();
-    if(cx>=panel.x&&cx<=panel.x+panel.w&&cy>=panel.y&&cy<=panel.y+panel.h){isDraggingCargo=true;return}
   }
   isDraggingCamera=true;
 }
@@ -382,42 +253,79 @@ function handlePointerDown(cx,cy){
 function handlePointerMove(cx,cy){
   const dx=cx-lastTouchX,dy=cy-lastTouchY;
   if(Math.abs(cx-dragStartX)>6||Math.abs(cy-dragStartY)>6)didDrag=true;
-  if(isDraggingCargo){lastTouchX=cx;lastTouchY=cy;return}
   if(isDraggingCamera){camera.targetX-=dx;camera.targetY-=dy;lastTouchX=cx;lastTouchY=cy}
 }
 
 function handlePointerUp(cx,cy){
-  if(isDraggingCargo){
-    const tile=getTileFromScreen(cx,cy);
-    if(Math.sqrt((tile.x-core.x)**2+(tile.y-core.y)**2)<=4&&shipCargo.amount>0){
-      coreInventory[shipCargo.type]=(coreInventory[shipCargo.type]||0)+shipCargo.amount;
-      shipCargo.type=null;shipCargo.amount=0;
-    }
-    isDraggingCargo=false;return;
-  }
   isDraggingCamera=false;
   if(didDrag)return;
-
-  // Ignore if clicked on menu
   if(getBuildMenuHit(cx,cy))return;
 
   const tile=getTileFromScreen(cx,cy);
 
-  if(buildMode==='delete'){
-    removeBuilding(tile.x,tile.y);
-    return;
-  }
-  if(buildMode==='place'&&selectedBlock){
-    placeBuilding(tile.x,tile.y,selectedBlock,selectedDir);
+  // Click on core → toggle core inventory / take items
+  if(map[tile.y]&&map[tile.y][tile.x]===BLOCK.CORE){
+    const distShip=Math.sqrt((ship.x-core.x)**2+(ship.y-core.y)**2);
+    if(distShip<5){
+      // Near core: if ship empty, can take; if has cargo, deposit
+      if(shipCargo.amount>0){
+        coreInventory[shipCargo.type]=(coreInventory[shipCargo.type]||0)+shipCargo.amount;
+        shipCargo.type=null;shipCargo.amount=0;
+      }else{
+        // Take first available from core (or open panel)
+        showCoreInv=!showCoreInv;
+      }
+    }else{
+      showCoreInv=!showCoreInv;
+    }
     return;
   }
 
-  // Double click mine
+  // Drop cargo on conveyor
+  if(shipCargo.amount>0){
+    const b=buildMap[tile.y]?.[tile.x];
+    if(b&&b.type!=='part'&&(b.type===BTYPE.CONVEYOR||b.type===BTYPE.TITANIUM_CONVEYOR||b.type===BTYPE.PLASTANIUM_CONVEYOR||b.type===BTYPE.ROUTER||b.type===BTYPE.JUNCTION)){
+      const dist=Math.sqrt((ship.x-tile.x-.5)**2+(ship.y-tile.y-.5)**2);
+      if(dist<4){
+        items.push({x:tile.x+.5,y:tile.y+.5,type:shipCargo.type,progress:0,dir:b.dir||DIR.RIGHT});
+        shipCargo.amount--;
+        if(shipCargo.amount<=0){shipCargo.type=null;shipCargo.amount=0}
+        return;
+      }
+    }
+  }
+
+  if(buildMode==='delete'){removeBuilding(tile.x,tile.y);return}
+
+  if(buildMode==='place'&&selectedBlock){
+    // Set ghost instead of immediate place
+    if(canPlace(tile.x,tile.y,selectedBlock)){
+      ghost={active:true,x:tile.x,y:tile.y,type:selectedBlock,dir:selectedDir};
+    }
+    return;
+  }
+
+  // Double-click mine
   const now=performance.now();
   if(lastClickTile&&lastClickTile.x===tile.x&&lastClickTile.y===tile.y&&now-lastClickTime<350){
     tryMine(tile.x,tile.y);lastClickTile=null;
   }else{lastClickTile=tile;lastClickTime=now}
 }
+
+// Wheel scroll for block list
+canvas.addEventListener('wheel',e=>{
+  if(selectedCategory&&selectedCategory.blocks.length){
+    const L=getMenuLayout();
+    const listW=3*(BTN_W+GAP)-GAP;
+    const listX=VIEW_W-12-2*(BTN_W+GAP)-8-listW;
+    const listY=L.catStartY-3*(BTN_H+GAP);
+    const listH=4*(BTN_H+GAP)-GAP;
+    // approximate mouse pos from last
+    blockScroll=Math.max(0,blockScroll+e.deltaY*0.5);
+    const maxScroll=Math.max(0,Math.ceil(selectedCategory.blocks.length/3)*(BTN_H+GAP)-listH);
+    blockScroll=Math.min(blockScroll,maxScroll);
+  }
+},{passive:true});
 
 canvas.addEventListener('mousedown',e=>{if(e.button===0)handlePointerDown(e.clientX,e.clientY)});
 window.addEventListener('mousemove',e=>handlePointerMove(e.clientX,e.clientY));
@@ -428,117 +336,60 @@ canvas.addEventListener('touchend',e=>{const t=e.changedTouches[0];handlePointer
 
 document.getElementById('regen-btn').addEventListener('click',()=>{generateMap();spawnShip()});
 document.getElementById('regen-btn').addEventListener('touchend',e=>{e.preventDefault();generateMap();spawnShip()});
-document.getElementById('inv-toggle').addEventListener('click',()=>showInventory=!showInventory);
-document.getElementById('inv-toggle').addEventListener('touchend',e=>{e.preventDefault();showInventory=!showInventory});
 
-function spawnShip(){
-  ship.x=core.x+.5;ship.y=core.y-2.5;ship.vx=0;ship.vy=0;ship.angle=-Math.PI/2;
-  camera.x=ship.x*TILE-VIEW_W/2;camera.y=ship.y*TILE-VIEW_H/2;
-  camera.targetX=camera.x;camera.targetY=camera.y;
-}
+function spawnShip(){ship.x=core.x+.5;ship.y=core.y-2.5;ship.vx=0;ship.vy=0;ship.angle=-Math.PI/2;camera.x=ship.x*TILE-VIEW_W/2;camera.y=ship.y*TILE-VIEW_H/2;camera.targetX=camera.x;camera.targetY=camera.y}
 
-// === ITEM LOGIC (simplified) ===
 function updateItems(dt){
-  // Unloaders pull from core
   for(let y=0;y<MAP_SIZE;y++)for(let x=0;x<MAP_SIZE;x++){
-    const b=buildMap[y][x];
-    if(!b||b.type!==BTYPE.UNLOADER)continue;
-    if(Math.random()>0.02)continue; // rate limit
-    // Find selected or any item in core
-    let take=null;
-    if(b.config&&coreInventory[b.config]>0)take=b.config;
-    else{
-      for(const r of RESOURCES)if(coreInventory[r.id]>0){take=r.id;break}
-    }
+    const b=buildMap[y][x];if(!b||b.type!==BTYPE.UNLOADER)continue;
+    if(Math.random()>0.025)continue;
+    let take=null;if(b.config&&coreInventory[b.config]>0)take=b.config;else{for(const r of RESOURCES)if(coreInventory[r.id]>0){take=r.id;break}}
     if(!take)continue;
-    // Try to put on adjacent conveyor in facing dir
     const nx=x+DIR_DX[b.dir],ny=y+DIR_DY[b.dir];
     if(nx<0||ny<0||nx>=MAP_SIZE||ny>=MAP_SIZE)continue;
     const nb=buildMap[ny][nx];
     if(nb&&(nb.type===BTYPE.CONVEYOR||nb.type===BTYPE.TITANIUM_CONVEYOR||nb.type===BTYPE.PLASTANIUM_CONVEYOR||nb.type===BTYPE.ROUTER||nb.type===BTYPE.JUNCTION)){
-      coreInventory[take]--;
-      items.push({x:nx+.5,y:ny+.5,type:take,progress:0,dir:b.dir});
+      coreInventory[take]--;items.push({x:nx+.5,y:ny+.5,type:take,progress:0,dir:b.dir});
     }
   }
-
-  // Move items
   for(let i=items.length-1;i>=0;i--){
-    const it=items[i];
-    const tx=Math.floor(it.x),ty=Math.floor(it.y);
+    const it=items[i];const tx=Math.floor(it.x),ty=Math.floor(it.y);
     if(tx<0||ty<0||tx>=MAP_SIZE||ty>=MAP_SIZE){items.splice(i,1);continue}
-    const b=buildMap[ty][tx];
-    if(!b||b.type==='part'){items.splice(i,1);continue}
-
-    let speed=.08;
-    if(b.type===BTYPE.TITANIUM_CONVEYOR)speed=.16;
-    if(b.type===BTYPE.PLASTANIUM_CONVEYOR)speed=.05;
-
-    // Simple movement toward facing direction of the block
-    let moveDir=b.dir;
-    if(b.type===BTYPE.ROUTER||b.type===BTYPE.DISTRIBUTOR||b.type===BTYPE.JUNCTION){
-      // try continue or find exit
-      moveDir=it.dir??b.dir;
-    }
-    if(b.type===BTYPE.SORTER){
-      // pass selected forward, others left/right
-      if(b.config&&it.type===b.config)moveDir=b.dir;
-      else moveDir=(b.dir+1)%4; // side
-    }
-    if(b.type===BTYPE.INV_SORTER){
-      if(b.config&&it.type===b.config)moveDir=(b.dir+1)%4;
-      else moveDir=b.dir;
-    }
-
+    const b=buildMap[ty][tx];if(!b||b.type==='part'){items.splice(i,1);continue}
+    let speed=.08;if(b.type===BTYPE.TITANIUM_CONVEYOR)speed=.16;if(b.type===BTYPE.PLASTANIUM_CONVEYOR)speed=.05;
+    let moveDir=b.dir;if(b.type===BTYPE.ROUTER||b.type===BTYPE.DISTRIBUTOR||b.type===BTYPE.JUNCTION)moveDir=it.dir??b.dir;
+    if(b.type===BTYPE.SORTER){if(b.config&&it.type===b.config)moveDir=b.dir;else moveDir=(b.dir+1)%4}
+    if(b.type===BTYPE.INV_SORTER){if(b.config&&it.type===b.config)moveDir=(b.dir+1)%4;else moveDir=b.dir}
     it.progress+=speed;
-    if(it.progress>=1){
-      it.progress=0;
-      const nx=tx+DIR_DX[moveDir],ny=ty+DIR_DY[moveDir];
-      if(nx>=0&&ny>=0&&nx<MAP_SIZE&&ny<MAP_SIZE&&buildMap[ny][nx]){
-        it.x=nx+.5;it.y=ny+.5;it.dir=moveDir;
-      }else{
-        // stuck or dump to core if near
-        if(Math.sqrt((tx-core.x)**2+(ty-core.y)**2)<=2){
-          coreInventory[it.type]=(coreInventory[it.type]||0)+1;
-          items.splice(i,1);
-        }
-      }
-    }else{
-      it.x=tx+.5+DIR_DX[moveDir]*it.progress;
-      it.y=ty+.5+DIR_DY[moveDir]*it.progress;
-    }
+    if(it.progress>=1){it.progress=0;const nx=tx+DIR_DX[moveDir],ny=ty+DIR_DY[moveDir];
+      if(nx>=0&&ny>=0&&nx<MAP_SIZE&&ny<MAP_SIZE&&buildMap[ny][nx]){it.x=nx+.5;it.y=ny+.5;it.dir=moveDir}
+      else if(Math.sqrt((tx-core.x)**2+(ty-core.y)**2)<=2){coreInventory[it.type]=(coreInventory[it.type]||0)+1;items.splice(i,1)}
+    }else{it.x=tx+.5+DIR_DX[moveDir]*it.progress;it.y=ty+.5+DIR_DY[moveDir]*it.progress}
   }
 }
 
 function update(dt){
   let ix=0,iy=0;
-  if(keys['KeyA']||keys['ArrowLeft'])ix-=1;
-  if(keys['KeyD']||keys['ArrowRight'])ix+=1;
-  if(keys['KeyW']||keys['ArrowUp'])iy-=1;
-  if(keys['KeyS']||keys['ArrowDown'])iy+=1;
-  const len=Math.sqrt(ix*ix+iy*iy);
-  if(len>1){ix/=len;iy/=len}
+  if(keys['KeyA']||keys['ArrowLeft'])ix-=1;if(keys['KeyD']||keys['ArrowRight'])ix+=1;
+  if(keys['KeyW']||keys['ArrowUp'])iy-=1;if(keys['KeyS']||keys['ArrowDown'])iy+=1;
+  const len=Math.sqrt(ix*ix+iy*iy);if(len>1){ix/=len;iy/=len}
   if(len>.1){ship.vx+=ix*ship.accel;ship.vy+=iy*ship.accel}
-
   const cx=(camera.x+VIEW_W/2)/TILE,cy=(camera.y+VIEW_H/2)/TILE;
   const dx=cx-ship.x,dy=cy-ship.y,dist=Math.sqrt(dx*dx+dy*dy);
   if(dist>.8){const f=Math.min(dist*ship.homeForce,.12);ship.vx+=(dx/dist)*f;ship.vy+=(dy/dist)*f}
-
   ship.vx*=ship.friction;ship.vy*=ship.friction;
   const spd=Math.sqrt(ship.vx*ship.vx+ship.vy*ship.vy);
   if(spd>ship.maxSpeed){ship.vx=ship.vx/spd*ship.maxSpeed;ship.vy=ship.vy/spd*ship.maxSpeed}
   ship.x+=ship.vx*dt*60;ship.y+=ship.vy*dt*60;
   ship.x=Math.max(.5,Math.min(MAP_SIZE-.5,ship.x));ship.y=Math.max(.5,Math.min(MAP_SIZE-.5,ship.y));
   if(spd>.12){const t=Math.atan2(ship.vy,ship.vx);let d=t-ship.angle;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;ship.angle+=d*.2}
-
   camera.x+=(camera.targetX-camera.x)*.18;camera.y+=(camera.targetY-camera.y)*.18;
   const maxX=MAP_SIZE*TILE-VIEW_W,maxY=MAP_SIZE*TILE-VIEW_H;
   camera.x=Math.max(0,Math.min(maxX,camera.x));camera.y=Math.max(0,Math.min(maxY,camera.y));
   camera.targetX=Math.max(0,Math.min(maxX,camera.targetX));camera.targetY=Math.max(0,Math.min(maxY,camera.targetY));
-
   updateItems(dt);
 }
 
-// === DRAW ===
 function drawIcon(x,y,size,type,color){
   ctx.save();ctx.translate(x,y);
   if(type==='ore'){ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(0,-size*.45);ctx.lineTo(size*.4,-size*.1);ctx.lineTo(size*.25,size*.4);ctx.lineTo(-size*.25,size*.4);ctx.lineTo(-size*.4,-size*.1);ctx.closePath();ctx.fill();ctx.fillStyle='rgba(255,255,255,.25)';ctx.beginPath();ctx.moveTo(0,-size*.45);ctx.lineTo(size*.15,-size*.15);ctx.lineTo(-size*.05,size*.05);ctx.closePath();ctx.fill()}
@@ -548,83 +399,83 @@ function drawIcon(x,y,size,type,color){
   ctx.restore();
 }
 
-function getShipCargoPanelRect(){const w=140,h=44;return{x:VIEW_W/2-w/2,y:VIEW_H-90,w,h}}
-
 function drawBuildMenu(){
-  const btnH=36,btnW=40,gap=4;
-  const menuBottom=VIEW_H-8;
-  const catStartY=menuBottom-btnH*2-gap-8;
-
+  const L=getMenuLayout();
   // Mode buttons
-  const modeY=menuBottom-btnH;
-  const modeX=VIEW_W-12-btnW*2-gap;
-  // Delete
   ctx.fillStyle=buildMode==='delete'?'rgba(255,60,60,.5)':'rgba(40,40,40,.85)';
-  ctx.fillRect(modeX,modeY,btnW,btnH);
-  ctx.strokeStyle=buildMode==='delete'?'#f66':'#666';ctx.strokeRect(modeX,modeY,btnW,btnH);
-  ctx.fillStyle='#fff';ctx.font='16px system-ui';ctx.textAlign='center';ctx.fillText('🗑',modeX+btnW/2,modeY+24);
-  // Place
+  ctx.fillRect(L.modeX,L.modeY,BTN_W,BTN_H);ctx.strokeStyle=buildMode==='delete'?'#f66':'#666';ctx.strokeRect(L.modeX,L.modeY,BTN_W,BTN_H);
+  ctx.fillStyle='#fff';ctx.font='16px system-ui';ctx.textAlign='center';ctx.fillText('🗑',L.modeX+BTN_W/2,L.modeY+24);
   ctx.fillStyle=buildMode==='place'?'rgba(255,140,0,.4)':'rgba(40,40,40,.85)';
-  ctx.fillRect(modeX+btnW+gap,modeY,btnW,btnH);
-  ctx.strokeStyle=buildMode==='place'?'#ff8c00':'#666';ctx.strokeRect(modeX+btnW+gap,modeY,btnW,btnH);
-  ctx.fillText('🔨',modeX+btnW+gap+btnW/2,modeY+24);
+  ctx.fillRect(L.modeX+BTN_W+GAP,L.modeY,BTN_W,BTN_H);ctx.strokeStyle=buildMode==='place'?'#ff8c00':'#666';ctx.strokeRect(L.modeX+BTN_W+GAP,L.modeY,BTN_W,BTN_H);
+  ctx.fillText('🔨',L.modeX+BTN_W+GAP+BTN_W/2,L.modeY+24);
+
+  // Rotate arrow + Confirm
+  const extraX=L.modeX-BTN_W-GAP;
+  if(selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional){
+    ctx.fillStyle='rgba(60,60,80,.9)';ctx.fillRect(extraX,L.modeY,BTN_W,BTN_H);
+    ctx.strokeStyle='#8af';ctx.strokeRect(extraX,L.modeY,BTN_W,BTN_H);
+    ctx.fillStyle='#fff';ctx.font='20px system-ui';ctx.fillText(DIR_ARROW[selectedDir],extraX+BTN_W/2,L.modeY+25);
+  }
+  if(ghost.active){
+    const confX=extraX-(selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional?BTN_W+GAP:0);
+    ctx.fillStyle='rgba(40,120,40,.9)';ctx.fillRect(confX,L.modeY,BTN_W,BTN_H);
+    ctx.strokeStyle='#6f6';ctx.strokeRect(confX,L.modeY,BTN_W,BTN_H);
+    ctx.fillStyle='#fff';ctx.font='20px system-ui';ctx.fillText('✓',confX+BTN_W/2,L.modeY+25);
+  }
 
   // Categories
   for(const cat of CATEGORIES){
     const col=cat.side==='left'?0:1;
-    const bx=VIEW_W-12-(2-col)*(btnW+gap);
-    const by=catStartY-cat.row*(btnH+gap);
+    const bx=VIEW_W-12-(2-col)*(BTN_W+GAP);
+    const by=L.catStartY-cat.row*(BTN_H+GAP);
     const active=selectedCategory===cat;
     ctx.fillStyle=active?'rgba(255,140,0,.35)':'rgba(30,30,35,.9)';
-    ctx.fillRect(bx,by,btnW,btnH);
-    ctx.strokeStyle=active?'#ff8c00':'#555';ctx.lineWidth=1;ctx.strokeRect(bx,by,btnW,btnH);
-    ctx.fillStyle=active?'#ffcc66':'#aaa';ctx.font='9px system-ui';ctx.textAlign='center';
-    ctx.fillText(cat.name.slice(0,6),bx+btnW/2,by+22);
+    ctx.fillRect(bx,by,BTN_W,BTN_H);ctx.strokeStyle=active?'#ff8c00':'#555';ctx.strokeRect(bx,by,BTN_W,BTN_H);
+    ctx.fillStyle=active?'#ffcc66':'#aaa';ctx.font='9px system-ui';ctx.textAlign='center';ctx.fillText(cat.name.slice(0,6),bx+BTN_W/2,by+22);
   }
 
-  // Blocks of selected category
+  // Block list — left of categories, 3 wide, full height, scrollable
   if(selectedCategory&&selectedCategory.blocks.length){
     const blocks=selectedCategory.blocks;
-    const cols=2;
-    const startX=VIEW_W-12-2*(btnW+gap)-8-Math.ceil(blocks.length/cols)*(btnW+gap);
+    const listW=3*(BTN_W+GAP)-GAP;
+    const listX=VIEW_W-12-2*(BTN_W+GAP)-8-listW;
+    const listY=L.catStartY-3*(BTN_H+GAP);
+    const listH=4*(BTN_H+GAP)-GAP;
+    ctx.fillStyle='rgba(20,20,28,.92)';ctx.fillRect(listX-4,listY-4,listW+8,listH+8);
+    ctx.strokeStyle='#444';ctx.strokeRect(listX-4,listY-4,listW+8,listH+8);
+    ctx.save();ctx.beginPath();ctx.rect(listX,listY,listW,listH);ctx.clip();
     blocks.forEach((bt,i)=>{
-      const col=i%cols,row=Math.floor(i/cols);
-      const bx=startX+col*(btnW+gap);
-      const by=catStartY-row*(btnH+gap);
-      const def=BUILDING_DEFS[bt];
-      const active=selectedBlock===bt;
-      ctx.fillStyle=active?'rgba(100,180,255,.4)':'rgba(25,25,30,.92)';
-      ctx.fillRect(bx,by,btnW,btnH);
-      ctx.strokeStyle=active?'#6ab0ff':'#444';ctx.strokeRect(bx,by,btnW,btnH);
-      ctx.fillStyle=def.color;ctx.fillRect(bx+8,by+6,btnW-16,14);
-      ctx.fillStyle='#ccc';ctx.font='8px system-ui';ctx.textAlign='center';
-      ctx.fillText(def.name.slice(0,7),bx+btnW/2,by+30);
+      const col=i%3,row=Math.floor(i/3);
+      const bx=listX+col*(BTN_W+GAP);
+      const by=listY+row*(BTN_H+GAP)-blockScroll;
+      if(by+BTN_H<listY||by>listY+listH)return;
+      const def=BUILDING_DEFS[bt];const active=selectedBlock===bt;
+      ctx.fillStyle=active?'rgba(100,180,255,.45)':'rgba(30,30,38,.95)';
+      ctx.fillRect(bx,by,BTN_W,BTN_H);ctx.strokeStyle=active?'#6ab0ff':'#555';ctx.strokeRect(bx,by,BTN_W,BTN_H);
+      ctx.fillStyle=def.color;ctx.fillRect(bx+6,by+4,BTN_W-12,12);
+      ctx.fillStyle='#ccc';ctx.font='8px system-ui';ctx.textAlign='center';ctx.fillText(def.name.slice(0,7),bx+BTN_W/2,by+28);
     });
+    ctx.restore();
   }
   ctx.textAlign='left';
 }
 
-function drawInventory(){
-  if(!showInventory)return;
+function drawCoreInv(){
+  if(!showCoreInv)return;
   const panelW=Math.min(200,VIEW_W*.4),rowH=24,pad=8,titleH=22;
   const coreItems=RESOURCES.filter(r=>(coreInventory[r.id]||0)>0);
   const coreH=titleH+Math.max(1,coreItems.length)*rowH+pad*2;
-  const px=8,py=55;
-  ctx.fillStyle='rgba(15,15,25,.9)';ctx.fillRect(px,py,panelW,coreH);
-  ctx.strokeStyle='rgba(100,180,255,.5)';ctx.lineWidth=1.5;ctx.strokeRect(px,py,panelW,coreH);
+  // Position near core on screen
+  const sx=core.x*TILE-camera.x,sy=core.y*TILE-camera.y;
+  let px=sx+30,py=sy-coreH/2;
+  if(px+panelW>VIEW_W-10)px=sx-panelW-10;
+  if(py<50)py=50;if(py+coreH>VIEW_H-100)py=VIEW_H-100-coreH;
+  ctx.fillStyle='rgba(15,15,25,.92)';ctx.fillRect(px,py,panelW,coreH);
+  ctx.strokeStyle='rgba(100,180,255,.6)';ctx.lineWidth=1.5;ctx.strokeRect(px,py,panelW,coreH);
   ctx.fillStyle='#6ab0ff';ctx.font='bold 11px system-ui';ctx.fillText('ЯДРО',px+pad,py+15);
   ctx.font='10px system-ui';
   if(!coreItems.length){ctx.fillStyle='#555';ctx.fillText('пусто',px+pad,py+titleH+14)}
   else coreItems.forEach((res,i)=>{const ry=py+titleH+pad+i*rowH;drawIcon(px+pad+8,ry+rowH/2-1,12,res.icon,res.color);ctx.fillStyle='#ccc';ctx.textAlign='left';ctx.fillText(res.name,px+pad+22,ry+13);ctx.fillStyle='#8cf';ctx.textAlign='right';ctx.fillText(String(coreInventory[res.id]),px+panelW-pad,ry+13);ctx.textAlign='left'});
-
-  const cargoY=py+coreH+8,cargoH=60;
-  ctx.fillStyle='rgba(25,15,10,.9)';ctx.fillRect(px,cargoY,panelW,cargoH);
-  ctx.strokeStyle='rgba(255,140,0,.5)';ctx.strokeRect(px,cargoY,panelW,cargoH);
-  ctx.fillStyle='#ff8c00';ctx.font='bold 11px system-ui';ctx.fillText('КОРАБЛЬ',px+pad,cargoY+15);
-  if(shipCargo.amount>0&&shipCargo.type){
-    const res=RESOURCES.find(r=>r.id===shipCargo.type);
-    if(res){drawIcon(px+pad+10,cargoY+36,16,res.icon,res.color);ctx.fillStyle='#eee';ctx.font='12px system-ui';ctx.fillText(res.name,px+pad+28,cargoY+32);ctx.fillStyle='#ffcc66';ctx.fillText(shipCargo.amount+'/'+PLAYER_MAX,px+pad+28,cargoY+48)}
-  }else{ctx.fillStyle='#555';ctx.font='11px system-ui';ctx.fillText('пусто',px+pad,cargoY+36)}
 }
 
 function draw(){
@@ -644,37 +495,40 @@ function draw(){
       if(type===BLOCK.WATER){ctx.fillStyle='rgba(255,255,255,.07)';ctx.fillRect(sx+3,sy+3,4,4)}
       if(type===BLOCK.WALL){ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.strokeRect(sx+.5,sy+.5,TILE-1,TILE-1)}
     }
-    if(ore!==ORE.NONE){
-      ctx.fillStyle=ORE_COLORS[ore];ctx.globalAlpha=.85;ctx.fillRect(sx+1,sy+1,TILE-2,TILE-2);ctx.globalAlpha=1;
-      ctx.fillStyle='rgba(255,255,255,.2)';ctx.beginPath();ctx.moveTo(sx+3,sy+3);ctx.lineTo(sx+TILE-5,sy+4);ctx.lineTo(sx+4,sy+TILE-6);ctx.closePath();ctx.fill();
-    }
-    // Buildings
+    if(ore!==ORE.NONE){ctx.fillStyle=ORE_COLORS[ore];ctx.globalAlpha=.85;ctx.fillRect(sx+1,sy+1,TILE-2,TILE-2);ctx.globalAlpha=1;ctx.fillStyle='rgba(255,255,255,.2)';ctx.beginPath();ctx.moveTo(sx+3,sy+3);ctx.lineTo(sx+TILE-5,sy+4);ctx.lineTo(sx+4,sy+TILE-6);ctx.closePath();ctx.fill()}
     const b=buildMap[y][x];
     if(b&&b.type!=='part'){
       const def=BUILDING_DEFS[b.type];
       if(def){
-        ctx.fillStyle=def.color;ctx.globalAlpha=.9;
-        ctx.fillRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);ctx.globalAlpha=1;
-        // direction arrow
-        ctx.fillStyle='#fff';ctx.globalAlpha=.7;
-        const cx=sx+TILE*def.size/2,cy=sy+TILE*def.size/2;
-        ctx.beginPath();
-        if(b.dir===DIR.RIGHT){ctx.moveTo(cx+5,cy);ctx.lineTo(cx-2,cy-4);ctx.lineTo(cx-2,cy+4)}
-        if(b.dir===DIR.LEFT){ctx.moveTo(cx-5,cy);ctx.lineTo(cx+2,cy-4);ctx.lineTo(cx+2,cy+4)}
-        if(b.dir===DIR.DOWN){ctx.moveTo(cx,cy+5);ctx.lineTo(cx-4,cy-2);ctx.lineTo(cx+4,cy-2)}
-        if(b.dir===DIR.UP){ctx.moveTo(cx,cy-5);ctx.lineTo(cx-4,cy+2);ctx.lineTo(cx+4,cy+2)}
-        ctx.closePath();ctx.fill();ctx.globalAlpha=1;
+        ctx.fillStyle=def.color;ctx.globalAlpha=.9;ctx.fillRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);ctx.globalAlpha=1;
+        if(def.directional){ctx.fillStyle='#fff';ctx.globalAlpha=.7;const cx2=sx+TILE*def.size/2,cy2=sy+TILE*def.size/2;ctx.beginPath();
+          if(b.dir===DIR.RIGHT){ctx.moveTo(cx2+5,cy2);ctx.lineTo(cx2-2,cy2-4);ctx.lineTo(cx2-2,cy2+4)}
+          if(b.dir===DIR.LEFT){ctx.moveTo(cx2-5,cy2);ctx.lineTo(cx2+2,cy2-4);ctx.lineTo(cx2+2,cy2+4)}
+          if(b.dir===DIR.DOWN){ctx.moveTo(cx2,cy2+5);ctx.lineTo(cx2-4,cy2-2);ctx.lineTo(cx2+4,cy2-2)}
+          if(b.dir===DIR.UP){ctx.moveTo(cx2,cy2-5);ctx.lineTo(cx2-4,cy2+2);ctx.lineTo(cx2+4,cy2+2)}
+          ctx.closePath();ctx.fill();ctx.globalAlpha=1}
       }
     }
   }
 
-  // Items
-  for(const it of items){
-    const res=RESOURCES.find(r=>r.id===it.type);
-    if(!res)continue;
-    const isx=it.x*TILE-camera.x,isy=it.y*TILE-camera.y;
-    ctx.fillStyle=res.color;ctx.beginPath();ctx.arc(isx,isy,4,0,Math.PI*2);ctx.fill();
+  // Ghost
+  if(ghost.active){
+    const def=BUILDING_DEFS[ghost.type];
+    if(def){
+      const sx=ghost.x*TILE-camera.x,sy=ghost.y*TILE-camera.y;
+      ctx.fillStyle=def.color;ctx.globalAlpha=.4;ctx.fillRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);ctx.globalAlpha=1;
+      ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.strokeRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);ctx.setLineDash([]);
+      if(def.directional){ctx.fillStyle='#fff';ctx.globalAlpha=.8;const cx2=sx+TILE*def.size/2,cy2=sy+TILE*def.size/2;ctx.beginPath();
+        if(ghost.dir===DIR.RIGHT){ctx.moveTo(cx2+5,cy2);ctx.lineTo(cx2-2,cy2-4);ctx.lineTo(cx2-2,cy2+4)}
+        if(ghost.dir===DIR.LEFT){ctx.moveTo(cx2-5,cy2);ctx.lineTo(cx2+2,cy2-4);ctx.lineTo(cx2+2,cy2+4)}
+        if(ghost.dir===DIR.DOWN){ctx.moveTo(cx2,cy2+5);ctx.lineTo(cx2-4,cy2-2);ctx.lineTo(cx2+4,cy2-2)}
+        if(ghost.dir===DIR.UP){ctx.moveTo(cx2,cy2-5);ctx.lineTo(cx2-4,cy2+2);ctx.lineTo(cx2+4,cy2+2)}
+        ctx.closePath();ctx.fill();ctx.globalAlpha=1}
+    }
   }
+
+  // Items
+  for(const it of items){const res=RESOURCES.find(r=>r.id===it.type);if(!res)continue;const isx=it.x*TILE-camera.x,isy=it.y*TILE-camera.y;ctx.fillStyle=res.color;ctx.beginPath();ctx.arc(isx,isy,4,0,Math.PI*2);ctx.fill()}
 
   // Ship
   const ssx=ship.x*TILE-camera.x,ssy=ship.y*TILE-camera.y;
@@ -687,51 +541,29 @@ function draw(){
   if(spd>.25){ctx.fillStyle='#ff4400';ctx.globalAlpha=.55+Math.random()*.4;ctx.beginPath();ctx.moveTo(-ship.size*.55,-3.5);ctx.lineTo(-ship.size*.55-6-Math.random()*4,0);ctx.lineTo(-ship.size*.55,3.5);ctx.closePath();ctx.fill();ctx.globalAlpha=1}
   ctx.restore();
 
+  // Cargo icon + number ON the ship (only when has items)
+  if(shipCargo.amount>0&&shipCargo.type){
+    const res=RESOURCES.find(r=>r.id===shipCargo.type);
+    if(res){
+      drawIcon(ssx,ssy-22,14,res.icon,res.color);
+      ctx.fillStyle='#000';ctx.font='bold 11px system-ui';ctx.textAlign='center';
+      ctx.fillText(String(shipCargo.amount),ssx+1,ssy-8);
+      ctx.fillStyle='#ffcc66';ctx.fillText(String(shipCargo.amount),ssx,ssy-9);
+      ctx.textAlign='left';
+    }
+  }
+
   // Minimap
   const miniSize=Math.min(90,VIEW_W*.18),ms=miniSize/MAP_SIZE,mx=VIEW_W-miniSize-8,my=50;
   ctx.fillStyle='rgba(0,0,0,.65)';ctx.fillRect(mx,my,miniSize,miniSize);ctx.strokeStyle='#555';ctx.strokeRect(mx,my,miniSize,miniSize);
-  for(let y=0;y<MAP_SIZE;y+=3)for(let x=0;x<MAP_SIZE;x+=3){
-    let col=COLORS[map[y][x]]||'#333';
-    if(oreMap[y][x]!==ORE.NONE)col=ORE_COLORS[oreMap[y][x]];
-    if(map[y][x]===BLOCK.CORE)col='#6ab0ff';
-    if(buildMap[y][x])col='#aaa';
-    ctx.fillStyle=col;ctx.fillRect(mx+x*ms,my+y*ms,ms*3+.5,ms*3+.5);
-  }
+  for(let y=0;y<MAP_SIZE;y+=3)for(let x=0;x<MAP_SIZE;x+=3){let col=COLORS[map[y][x]]||'#333';if(oreMap[y][x]!==ORE.NONE)col=ORE_COLORS[oreMap[y][x]];if(map[y][x]===BLOCK.CORE)col='#6ab0ff';if(buildMap[y][x])col='#aaa';ctx.fillStyle=col;ctx.fillRect(mx+x*ms,my+y*ms,ms*3+.5,ms*3+.5)}
   ctx.fillStyle='#ff8c00';ctx.beginPath();ctx.arc(mx+ship.x*ms,my+ship.y*ms,2.5,0,Math.PI*2);ctx.fill();
 
-  drawInventory();
-
-  // Cargo panel
-  if(shipCargo.amount>0){
-    const p=getShipCargoPanelRect();
-    ctx.fillStyle='rgba(30,20,10,.85)';ctx.fillRect(p.x,p.y,p.w,p.h);ctx.strokeStyle='#ff8c00';ctx.strokeRect(p.x,p.y,p.w,p.h);
-    const res=RESOURCES.find(r=>r.id===shipCargo.type);
-    if(res){drawIcon(p.x+20,p.y+22,14,res.icon,res.color);ctx.fillStyle='#eee';ctx.font='11px system-ui';ctx.fillText(res.name,p.x+38,p.y+16);ctx.fillStyle='#ffcc66';ctx.fillText(shipCargo.amount+'/'+PLAYER_MAX,p.x+38,p.y+32)}
-    ctx.fillStyle='#888';ctx.font='9px system-ui';ctx.fillText('Перетащи на ядро',p.x+6,p.y+p.h-4);
-  }
-  if(isDraggingCargo&&shipCargo.amount>0){
-    const res=RESOURCES.find(r=>r.id===shipCargo.type);
-    if(res){drawIcon(lastTouchX,lastTouchY,18,res.icon,res.color);ctx.fillStyle='#ffcc66';ctx.font='bold 13px system-ui';ctx.fillText(String(shipCargo.amount),lastTouchX+14,lastTouchY+5)}
-  }
-
-  // Ghost building
-  if(buildMode==='place'&&selectedBlock){
-    // show under cursor if possible — simplified, skip for now
-  }
-
+  drawCoreInv();
   drawBuildMenu();
 
-  // Hint
-  if(buildMode==='place'&&selectedBlock){
-    ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(VIEW_W/2-80,VIEW_H-130,160,22);
-    ctx.fillStyle='#ffcc66';ctx.font='11px system-ui';ctx.textAlign='center';
-    ctx.fillText('R — поворот · Клик — поставить',VIEW_W/2,VIEW_H-115);ctx.textAlign='left';
-  }
-  if(buildMode==='delete'){
-    ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(VIEW_W/2-60,VIEW_H-130,120,22);
-    ctx.fillStyle='#f66';ctx.font='11px system-ui';ctx.textAlign='center';
-    ctx.fillText('Клик — сломать',VIEW_W/2,VIEW_H-115);ctx.textAlign='left';
-  }
+  if(buildMode==='place'&&selectedBlock){ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(VIEW_W/2-90,12,180,20);ctx.fillStyle='#ffcc66';ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillText('Клик — призрак · ✓ — поставить · R/стрелка — поворот',VIEW_W/2,26);ctx.textAlign='left'}
+  if(buildMode==='delete'){ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(VIEW_W/2-50,12,100,20);ctx.fillStyle='#f66';ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillText('Клик — сломать',VIEW_W/2,26);ctx.textAlign='left'}
 }
 
 let lastTime=performance.now();
