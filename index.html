@@ -7,57 +7,28 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
         html, body {
-            width: 100%;
-            height: 100%;
-            background: #0a0a0a;
-            color: #eee;
+            width: 100%; height: 100%;
+            background: #0a0a0a; color: #eee;
             font-family: system-ui, -apple-system, sans-serif;
-            overflow: hidden;
-            position: fixed;
+            overflow: hidden; position: fixed;
         }
         #ui {
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            z-index: 10;
-            pointer-events: none;
-            padding: 10px 14px;
+            position: absolute; top: 0; left: 0; right: 0; z-index: 10;
+            pointer-events: none; padding: 10px 14px;
             background: linear-gradient(to bottom, rgba(0,0,0,0.75), transparent);
         }
-        h1 {
-            font-size: 1.05rem;
-            color: #ff8c00;
-            text-shadow: 0 0 12px rgba(255,140,0,0.6);
-            margin-bottom: 3px;
-        }
-        .info {
-            font-size: 0.7rem;
-            color: #aaa;
-            line-height: 1.3;
-        }
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-            background: #0a0a0a;
-        }
+        h1 { font-size: 1.05rem; color: #ff8c00; text-shadow: 0 0 12px rgba(255,140,0,0.6); margin-bottom: 3px; }
+        .info { font-size: 0.7rem; color: #aaa; line-height: 1.3; }
+        canvas { display: block; width: 100%; height: 100%; background: #0a0a0a; }
         #regen-btn, #inv-toggle {
-            position: absolute;
-            bottom: 20px;
-            z-index: 20;
-            background: rgba(255,140,0,0.2);
-            border: 1px solid #ff8c00;
-            color: #ff8c00;
-            padding: 10px 16px;
-            border-radius: 10px;
-            font-size: 0.8rem;
-            pointer-events: auto;
-            user-select: none;
+            position: absolute; bottom: 20px; z-index: 20;
+            background: rgba(255,140,0,0.2); border: 1px solid #ff8c00;
+            color: #ff8c00; padding: 10px 16px; border-radius: 10px;
+            font-size: 0.8rem; pointer-events: auto; user-select: none;
         }
         #regen-btn { right: 16px; }
         #inv-toggle { left: 16px; }
-        #regen-btn:active, #inv-toggle:active {
-            background: rgba(255,140,0,0.4);
-        }
+        #regen-btn:active, #inv-toggle:active { background: rgba(255,140,0,0.4); }
         @media (max-width: 699px) {
             h1 { font-size: 0.95rem; }
             .info { font-size: 0.65rem; }
@@ -68,7 +39,8 @@
     <div id="ui">
         <h1>🚀 Космический набросок</h1>
         <div class="info">
-            Свайп — камера · WASD — управление · Корабль летит к центру
+            Дабл-клик по руде — добыча · В радиусе 20 от ядра → в ядро<br>
+            Дальше → в корабль (макс 30, 1 тип) · Титан/Торий только ядром
         </div>
     </div>
 
@@ -81,7 +53,6 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
-// === РАЗМЕРЫ ===
 let VIEW_W = 0, VIEW_H = 0;
 function resize() {
     VIEW_W = window.innerWidth;
@@ -95,27 +66,24 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-// === НАСТРОЙКИ ===
-const MAP_SIZE = 160;          // было 100 → стало 160
+// === КОНСТАНТЫ ===
+const MAP_SIZE = 160;
 const TILE = 16;
+const CORE_RANGE = 20;          // радиус добычи в ядро
+const PLAYER_MAX = 30;          // максимум в корабле
 
-const BLOCK = { WALL: 0, DIRT: 1, FERTILE: 2, WATER: 3 };
+const BLOCK = { WALL: 0, DIRT: 1, FERTILE: 2, WATER: 3, CORE: 4 };
 const COLORS = {
     [BLOCK.WALL]:    '#555555',
     [BLOCK.DIRT]:    '#8B5A2B',
     [BLOCK.FERTILE]: '#5C4033',
-    [BLOCK.WATER]:   '#1E90FF'
+    [BLOCK.WATER]:   '#1E90FF',
+    [BLOCK.CORE]:    '#2a2a3a'
 };
 
-// Руды
 const ORE = {
-    NONE: 0,
-    COPPER: 1,
-    LEAD: 2,
-    COAL: 3,
-    TITANIUM: 4,
-    THORIUM: 5,
-    METALOM: 6
+    NONE: 0, COPPER: 1, LEAD: 2, COAL: 3,
+    TITANIUM: 4, THORIUM: 5, METALOM: 6
 };
 
 const ORE_COLORS = {
@@ -127,7 +95,15 @@ const ORE_COLORS = {
     [ORE.METALOM]:  '#6e6e6e'
 };
 
-// === ИНВЕНТАРЬ ===
+const ORE_TO_ID = {
+    [ORE.COPPER]: 'copper', [ORE.LEAD]: 'lead', [ORE.COAL]: 'coal',
+    [ORE.TITANIUM]: 'titanium', [ORE.THORIUM]: 'thorium', [ORE.METALOM]: 'metalom'
+};
+
+// Ресурсы, которые игрок НЕ может добывать
+const PLAYER_FORBIDDEN = new Set([ORE.TITANIUM, ORE.THORIUM]);
+
+// === ИНВЕНТАРИ ===
 const RESOURCES = [
     { id: 'copper',     name: 'Медь',              color: '#d99d73', icon: 'ore' },
     { id: 'lead',       name: 'Свинец',            color: '#8c7fa9', icon: 'ore' },
@@ -147,17 +123,20 @@ const RESOURCES = [
     { id: 'pyratite',   name: 'Пиротит',           color: '#ff3c00', icon: 'powder' }
 ];
 
-const inventory = {};
-RESOURCES.forEach(r => inventory[r.id] = 0);
+// Инвентарь ЯДРА (общий склад)
+const coreInventory = {};
+RESOURCES.forEach(r => coreInventory[r.id] = 0);
 
-inventory.copper = 24;
-inventory.lead = 18;
-inventory.coal = 45;
-inventory.sand = 60;
-inventory.titanium = 8;
-inventory.graphite = 12;
+// Инвентарь КОРАБЛЯ (только 1 тип, макс 30)
+const shipCargo = {
+    type: null,   // id ресурса или null
+    amount: 0
+};
 
 let showInventory = true;
+
+// === ЯДРО ===
+let core = { x: 0, y: 0 };  // центр 3x3
 
 // === КАРТА ===
 let map = [];
@@ -180,82 +159,115 @@ function generateMap() {
         map[0][i] = map[MAP_SIZE-1][i] = map[i][0] = map[i][MAP_SIZE-1] = BLOCK.WALL;
     }
 
-    // Озёра (больше на большой карте)
+    // Озёра
     const lakeCount = 10 + Math.floor(Math.random() * 8);
     for (let l = 0; l < lakeCount; l++) {
-        const cx = 10 + Math.floor(Math.random() * (MAP_SIZE - 20));
-        const cy = 10 + Math.floor(Math.random() * (MAP_SIZE - 20));
+        const cx = 12 + Math.floor(Math.random() * (MAP_SIZE - 24));
+        const cy = 12 + Math.floor(Math.random() * (MAP_SIZE - 24));
         const radius = 5 + Math.floor(Math.random() * 11);
         for (let y = cy - radius; y <= cy + radius; y++) {
             for (let x = cx - radius; x <= cx + radius; x++) {
                 if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
-                const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
-                if (dist < radius - Math.random() * 2.8) map[y][x] = BLOCK.WATER;
+                const dist = Math.sqrt((x-cx)**2 + (y-cy)**2);
+                if (dist < radius - Math.random()*2.8) map[y][x] = BLOCK.WATER;
             }
         }
     }
 
-    // Плодородная земля
+    // Плодородная
     const fertileCount = 14 + Math.floor(Math.random() * 10);
     for (let f = 0; f < fertileCount; f++) {
-        const cx = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
-        const cy = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
+        const cx = 10 + Math.floor(Math.random() * (MAP_SIZE - 20));
+        const cy = 10 + Math.floor(Math.random() * (MAP_SIZE - 20));
         const radius = 6 + Math.floor(Math.random() * 12);
         for (let y = cy - radius; y <= cy + radius; y++) {
             for (let x = cx - radius; x <= cx + radius; x++) {
                 if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
                 if (map[y][x] === BLOCK.WATER) continue;
-                const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
-                if (dist < radius - Math.random() * 3.5) map[y][x] = BLOCK.FERTILE;
+                const dist = Math.sqrt((x-cx)**2 + (y-cy)**2);
+                if (dist < radius - Math.random()*3.5) map[y][x] = BLOCK.FERTILE;
             }
         }
     }
 
-    // Стены / скалы
+    // Стены
     const wallCount = 16 + Math.floor(Math.random() * 12);
     for (let w = 0; w < wallCount; w++) {
-        const cx = 6 + Math.floor(Math.random() * (MAP_SIZE - 12));
-        const cy = 6 + Math.floor(Math.random() * (MAP_SIZE - 12));
+        const cx = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
+        const cy = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
         const radius = 2 + Math.floor(Math.random() * 6);
         for (let y = cy - radius; y <= cy + radius; y++) {
             for (let x = cx - radius; x <= cx + radius; x++) {
                 if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
-                const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
-                if (dist < radius - Math.random() * 2) map[y][x] = BLOCK.WALL;
+                const dist = Math.sqrt((x-cx)**2 + (y-cy)**2);
+                if (dist < radius - Math.random()*2) map[y][x] = BLOCK.WALL;
             }
         }
     }
 
     // Сглаживание
     for (let pass = 0; pass < 3; pass++) {
-        const newMap = map.map(row => row.slice());
-        for (let y = 1; y < MAP_SIZE - 1; y++) {
-            for (let x = 1; x < MAP_SIZE - 1; x++) {
-                let waterN = 0, fertileN = 0, wallN = 0;
-                for (let dy = -1; dy <= 1; dy++)
-                    for (let dx = -1; dx <= 1; dx++) {
-                        if (dx === 0 && dy === 0) continue;
+        const newMap = map.map(r => r.slice());
+        for (let y = 1; y < MAP_SIZE-1; y++) {
+            for (let x = 1; x < MAP_SIZE-1; x++) {
+                let waterN=0, fertileN=0, wallN=0;
+                for (let dy=-1; dy<=1; dy++)
+                    for (let dx=-1; dx<=1; dx++) {
+                        if (dx===0 && dy===0) continue;
                         const t = map[y+dy][x+dx];
-                        if (t === BLOCK.WATER) waterN++;
-                        else if (t === BLOCK.FERTILE) fertileN++;
-                        else if (t === BLOCK.WALL) wallN++;
+                        if (t===BLOCK.WATER) waterN++;
+                        else if (t===BLOCK.FERTILE) fertileN++;
+                        else if (t===BLOCK.WALL) wallN++;
                     }
                 const cur = map[y][x];
-                if (cur === BLOCK.WATER && waterN < 3) newMap[y][x] = BLOCK.DIRT;
-                else if (cur !== BLOCK.WATER && waterN >= 5 && Math.random() < 0.4) newMap[y][x] = BLOCK.WATER;
-                else if (cur === BLOCK.WALL && wallN < 2) newMap[y][x] = BLOCK.DIRT;
-                else if (cur === BLOCK.FERTILE && fertileN < 2) newMap[y][x] = BLOCK.DIRT;
+                if (cur===BLOCK.WATER && waterN<3) newMap[y][x]=BLOCK.DIRT;
+                else if (cur!==BLOCK.WATER && waterN>=5 && Math.random()<0.4) newMap[y][x]=BLOCK.WATER;
+                else if (cur===BLOCK.WALL && wallN<2) newMap[y][x]=BLOCK.DIRT;
+                else if (cur===BLOCK.FERTILE && fertileN<2) newMap[y][x]=BLOCK.DIRT;
             }
         }
         map = newMap;
     }
 
-    // Границы снова
+    // Границы
     for (let i = 0; i < MAP_SIZE; i++) {
         map[0][i] = map[MAP_SIZE-1][i] = map[i][0] = map[i][MAP_SIZE-1] = BLOCK.WALL;
     }
 
-    // === ГЕНЕРАЦИЯ РУД БЕЗ ПЕРЕСЕЧЕНИЙ ===
+    // === РАЗМЕЩЕНИЕ ЯДРА 3x3 ===
+    // Ищем чистое место около центра
+    let corePlaced = false;
+    for (let attempt = 0; attempt < 200; attempt++) {
+        const cx = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*30);
+        const cy = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*30);
+        let ok = true;
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                const tx = cx + dx, ty = cy + dy;
+                if (tx<=0||ty<=0||tx>=MAP_SIZE-1||ty>=MAP_SIZE-1) { ok=false; break; }
+                if (map[ty][tx] === BLOCK.WATER || map[ty][tx] === BLOCK.WALL) { ok=false; break; }
+            }
+            if (!ok) break;
+        }
+        if (ok) {
+            core.x = cx;
+            core.y = cy;
+            for (let dy = -1; dy <= 1; dy++)
+                for (let dx = -1; dx <= 1; dx++)
+                    map[cy+dy][cx+dx] = BLOCK.CORE;
+            corePlaced = true;
+            break;
+        }
+    }
+    if (!corePlaced) {
+        core.x = Math.floor(MAP_SIZE/2);
+        core.y = Math.floor(MAP_SIZE/2);
+        for (let dy=-1; dy<=1; dy++)
+            for (let dx=-1; dx<=1; dx++)
+                map[core.y+dy][core.x+dx] = BLOCK.CORE;
+    }
+
+    // === РУДЫ (не пересекаются + не на ядре) ===
     const oreTypes = [
         { type: ORE.COPPER,   count: 12, minR: 3, maxR: 6 },
         { type: ORE.LEAD,     count: 10, minR: 3, maxR: 6 },
@@ -265,84 +277,78 @@ function generateMap() {
         { type: ORE.METALOM,  count: 8,  minR: 2, maxR: 5 }
     ];
 
-    // Список уже занятых центров кластеров (чтобы не ставить рядом)
     const placedCenters = [];
 
     for (const ore of oreTypes) {
         let placed = 0;
         let attempts = 0;
-        const maxAttempts = ore.count * 25;
-
-        while (placed < ore.count && attempts < maxAttempts) {
+        while (placed < ore.count && attempts < ore.count * 30) {
             attempts++;
-
-            const cx = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
-            const cy = 8 + Math.floor(Math.random() * (MAP_SIZE - 16));
+            const cx = 10 + Math.floor(Math.random() * (MAP_SIZE - 20));
+            const cy = 10 + Math.floor(Math.random() * (MAP_SIZE - 20));
             const radius = ore.minR + Math.floor(Math.random() * (ore.maxR - ore.minR + 1));
 
-            // Проверяем, не слишком ли близко к уже существующим кластерам
+            // Не рядом с другими кластерами
             let tooClose = false;
             for (const prev of placedCenters) {
-                const d = Math.sqrt((cx - prev.x)**2 + (cy - prev.y)**2);
-                if (d < radius + prev.r + 3) {  // минимальный зазор 3 клетки
-                    tooClose = true;
-                    break;
+                if (Math.sqrt((cx-prev.x)**2 + (cy-prev.y)**2) < radius + prev.r + 3) {
+                    tooClose = true; break;
                 }
             }
             if (tooClose) continue;
 
-            // Проверяем, что зона в основном свободна от руд и подходит по террейну
-            let freeCells = 0;
-            let totalChecked = 0;
-            for (let y = cy - radius; y <= cy + radius; y++) {
-                for (let x = cx - radius; x <= cx + radius; x++) {
-                    if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
-                    const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
-                    if (dist > radius) continue;
-                    totalChecked++;
-                    if (oreMap[y][x] === ORE.NONE &&
-                        (map[y][x] === BLOCK.DIRT || map[y][x] === BLOCK.FERTILE)) {
-                        freeCells++;
-                    }
+            // Не на ядре
+            if (Math.abs(cx - core.x) < radius + 3 && Math.abs(cy - core.y) < radius + 3) continue;
+
+            let free = 0, total = 0;
+            for (let y = cy-radius; y <= cy+radius; y++) {
+                for (let x = cx-radius; x <= cx+radius; x++) {
+                    if (x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1) continue;
+                    const d = Math.sqrt((x-cx)**2+(y-cy)**2);
+                    if (d > radius) continue;
+                    total++;
+                    if (oreMap[y][x]===ORE.NONE && (map[y][x]===BLOCK.DIRT||map[y][x]===BLOCK.FERTILE))
+                        free++;
                 }
             }
+            if (total === 0 || free/total < 0.55) continue;
 
-            // Если меньше 60% клеток свободны — пропускаем
-            if (totalChecked === 0 || freeCells / totalChecked < 0.6) continue;
-
-            // Ставим кластер
-            for (let y = cy - radius; y <= cy + radius; y++) {
-                for (let x = cx - radius; x <= cx + radius; x++) {
-                    if (x <= 0 || y <= 0 || x >= MAP_SIZE-1 || y >= MAP_SIZE-1) continue;
-                    if (map[y][x] !== BLOCK.DIRT && map[y][x] !== BLOCK.FERTILE) continue;
-                    if (oreMap[y][x] !== ORE.NONE) continue;
-
-                    const dist = Math.sqrt((x - cx)**2 + (y - cy)**2);
-                    if (dist < radius - Math.random() * 1.8) {
-                        oreMap[y][x] = ore.type;
-                    }
+            for (let y = cy-radius; y <= cy+radius; y++) {
+                for (let x = cx-radius; x <= cx+radius; x++) {
+                    if (x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1) continue;
+                    if (map[y][x]!==BLOCK.DIRT && map[y][x]!==BLOCK.FERTILE) continue;
+                    if (oreMap[y][x]!==ORE.NONE) continue;
+                    const d = Math.sqrt((x-cx)**2+(y-cy)**2);
+                    if (d < radius - Math.random()*1.8) oreMap[y][x] = ore.type;
                 }
             }
-
-            placedCenters.push({ x: cx, y: cy, r: radius });
+            placedCenters.push({x:cx, y:cy, r:radius});
             placed++;
         }
     }
+
+    // Очистка инвентарей при новой карте
+    RESOURCES.forEach(r => coreInventory[r.id] = 0);
+    shipCargo.type = null;
+    shipCargo.amount = 0;
 }
 
 // === КОРАБЛЬ ===
 const ship = {
-    x: MAP_SIZE / 2, y: MAP_SIZE / 2,
-    angle: -Math.PI / 2,
+    x: 0, y: 0,
+    angle: -Math.PI/2,
     vx: 0, vy: 0,
     maxSpeed: 2.4, accel: 0.12, friction: 0.95,
     size: 13, homeForce: 0.035
 };
 
-const camera = { x: 0, y: 0, targetX: 0, targetY: 0 };
+const camera = { x:0, y:0, targetX:0, targetY:0 };
 
 // === ВВОД ===
 const keys = {};
+let lastClickTime = 0;
+let lastClickTile = null;
+
 window.addEventListener('keydown', e => {
     keys[e.code] = true;
     if (e.code === 'Space') { e.preventDefault(); generateMap(); spawnShip(); }
@@ -350,65 +356,178 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 
+// Камера (свайп / drag)
 let isDraggingCamera = false;
 let lastTouchX = 0, lastTouchY = 0;
+let dragStartX = 0, dragStartY = 0;
+let didDrag = false;
 
-canvas.addEventListener('mousedown', e => {
-    if (e.button === 0) {
-        isDraggingCamera = true;
-        lastTouchX = e.clientX; lastTouchY = e.clientY;
+// Для перетаскивания груза в ядро
+let isDraggingCargo = false;
+
+function getTileFromScreen(sx, sy) {
+    const worldX = (sx + camera.x) / TILE;
+    const worldY = (sy + camera.y) / TILE;
+    return { x: Math.floor(worldX), y: Math.floor(worldY) };
+}
+
+function tryMine(tx, ty) {
+    if (tx < 0 || ty < 0 || tx >= MAP_SIZE || ty >= MAP_SIZE) return;
+    const ore = oreMap[ty][tx];
+    if (ore === ORE.NONE) return;
+
+    // Расстояние до центра ядра
+    const dist = Math.sqrt((tx - core.x)**2 + (ty - core.y)**2);
+    const inCoreRange = dist <= CORE_RANGE;
+
+    // Игрок не может добывать титан и торий
+    if (!inCoreRange && PLAYER_FORBIDDEN.has(ore)) {
+        // Можно показать сообщение, пока просто игнор
+        return;
     }
-});
-window.addEventListener('mouseup', () => isDraggingCamera = false);
-window.addEventListener('mousemove', e => {
+
+    const resId = ORE_TO_ID[ore];
+    if (!resId) return;
+
+    // Убираем руду с карты
+    oreMap[ty][tx] = ORE.NONE;
+
+    if (inCoreRange) {
+        // Сразу в ядро
+        coreInventory[resId] = (coreInventory[resId] || 0) + 1;
+    } else {
+        // В корабль
+        if (shipCargo.type === null || shipCargo.type === resId) {
+            if (shipCargo.amount < PLAYER_MAX) {
+                shipCargo.type = resId;
+                shipCargo.amount++;
+            }
+            // если полный — просто теряем (или можно не убирать руду, но пока теряем)
+        }
+        // если другой тип уже есть — не берём
+    }
+}
+
+// Обработка кликов / тапов
+function handlePointerDown(clientX, clientY) {
+    dragStartX = clientX;
+    dragStartY = clientY;
+    didDrag = false;
+    lastTouchX = clientX;
+    lastTouchY = clientY;
+
+    // Проверка: если кликнули по панели груза корабля рядом с ядром — начинаем drag
+    if (shipCargo.amount > 0) {
+        const panel = getShipCargoPanelRect();
+        if (clientX >= panel.x && clientX <= panel.x+panel.w &&
+            clientY >= panel.y && clientY <= panel.y+panel.h) {
+            isDraggingCargo = true;
+            return;
+        }
+    }
+
+    isDraggingCamera = true;
+}
+
+function handlePointerMove(clientX, clientY) {
+    const dx = clientX - lastTouchX;
+    const dy = clientY - lastTouchY;
+
+    if (Math.abs(clientX - dragStartX) > 6 || Math.abs(clientY - dragStartY) > 6) {
+        didDrag = true;
+    }
+
+    if (isDraggingCargo) {
+        // просто запоминаем позицию для отрисовки
+        lastTouchX = clientX;
+        lastTouchY = clientY;
+        return;
+    }
+
     if (isDraggingCamera) {
-        camera.targetX -= (e.clientX - lastTouchX);
-        camera.targetY -= (e.clientY - lastTouchY);
-        lastTouchX = e.clientX; lastTouchY = e.clientY;
+        camera.targetX -= dx;
+        camera.targetY -= dy;
+        lastTouchX = clientX;
+        lastTouchY = clientY;
     }
-});
+}
 
+function handlePointerUp(clientX, clientY) {
+    if (isDraggingCargo) {
+        // Проверяем, отпустили ли над ядром
+        const tile = getTileFromScreen(clientX, clientY);
+        const distToCore = Math.sqrt((tile.x - core.x)**2 + (tile.y - core.y)**2);
+        if (distToCore <= 4 && shipCargo.amount > 0) {  // рядом с ядром
+            // Перекладываем всё в ядро
+            coreInventory[shipCargo.type] = (coreInventory[shipCargo.type] || 0) + shipCargo.amount;
+            shipCargo.type = null;
+            shipCargo.amount = 0;
+        }
+        isDraggingCargo = false;
+        return;
+    }
+
+    isDraggingCamera = false;
+
+    // Если не было драга — считаем кликом (для дабл-клика)
+    if (!didDrag) {
+        const now = performance.now();
+        const tile = getTileFromScreen(clientX, clientY);
+
+        if (lastClickTile &&
+            lastClickTile.x === tile.x && lastClickTile.y === tile.y &&
+            now - lastClickTime < 350) {
+            // Дабл-клик!
+            tryMine(tile.x, tile.y);
+            lastClickTile = null;
+        } else {
+            lastClickTile = tile;
+            lastClickTime = now;
+        }
+    }
+}
+
+// Мышь
+canvas.addEventListener('mousedown', e => {
+    if (e.button === 0) handlePointerDown(e.clientX, e.clientY);
+});
+window.addEventListener('mousemove', e => handlePointerMove(e.clientX, e.clientY));
+window.addEventListener('mouseup', e => handlePointerUp(e.clientX, e.clientY));
+
+// Тач
 canvas.addEventListener('touchstart', e => {
     if (e.touches.length === 1) {
-        isDraggingCamera = true;
-        lastTouchX = e.touches[0].clientX;
-        lastTouchY = e.touches[0].clientY;
+        handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
     }
 }, { passive: false });
 
 canvas.addEventListener('touchmove', e => {
     e.preventDefault();
-    if (isDraggingCamera && e.touches.length === 1) {
-        camera.targetX -= (e.touches[0].clientX - lastTouchX);
-        camera.targetY -= (e.touches[0].clientY - lastTouchY);
-        lastTouchX = e.touches[0].clientX;
-        lastTouchY = e.touches[0].clientY;
+    if (e.touches.length === 1) {
+        handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
     }
 }, { passive: false });
 
-canvas.addEventListener('touchend', () => isDraggingCamera = false);
-canvas.addEventListener('touchcancel', () => isDraggingCamera = false);
+canvas.addEventListener('touchend', e => {
+    const t = e.changedTouches[0];
+    handlePointerUp(t.clientX, t.clientY);
+});
 
 document.getElementById('regen-btn').addEventListener('click', () => { generateMap(); spawnShip(); });
 document.getElementById('regen-btn').addEventListener('touchend', e => { e.preventDefault(); generateMap(); spawnShip(); });
 document.getElementById('inv-toggle').addEventListener('click', () => showInventory = !showInventory);
 document.getElementById('inv-toggle').addEventListener('touchend', e => { e.preventDefault(); showInventory = !showInventory; });
 
-// === СПАВН ===
+// === СПАВН НАД ЯДРОМ ===
 function spawnShip() {
-    for (let i = 0; i < 400; i++) {
-        const tx = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*50);
-        const ty = Math.floor(MAP_SIZE/2 + (Math.random()-0.5)*50);
-        if (map[ty] && (map[ty][tx] === BLOCK.DIRT || map[ty][tx] === BLOCK.FERTILE)) {
-            ship.x = tx + 0.5; ship.y = ty + 0.5;
-            ship.vx = 0; ship.vy = 0; ship.angle = -Math.PI/2;
-            camera.x = ship.x * TILE - VIEW_W / 2;
-            camera.y = ship.y * TILE - VIEW_H / 2;
-            camera.targetX = camera.x; camera.targetY = camera.y;
-            return;
-        }
-    }
-    ship.x = MAP_SIZE/2; ship.y = MAP_SIZE/2;
+    ship.x = core.x + 0.5;
+    ship.y = core.y - 2.5;  // чуть выше ядра
+    ship.vx = 0; ship.vy = 0;
+    ship.angle = -Math.PI/2;
+    camera.x = ship.x * TILE - VIEW_W / 2;
+    camera.y = ship.y * TILE - VIEW_H / 2;
+    camera.targetX = camera.x;
+    camera.targetY = camera.y;
 }
 
 // === ФИЗИКА ===
@@ -469,7 +588,7 @@ function update(dt) {
     camera.targetY = Math.max(0, Math.min(maxCamY, camera.targetY));
 }
 
-// === ИКОНКИ ===
+// === ОТРИСОВКА ===
 function drawIcon(x, y, size, type, color) {
     ctx.save();
     ctx.translate(x, y);
@@ -492,9 +611,9 @@ function drawIcon(x, y, size, type, color) {
         ctx.fill();
     } else if (type === 'sand') {
         ctx.fillStyle = color;
-        for (let i = 0; i < 5; i++) {
-            const ox = Math.sin(i*2.1)*0.3 * size;
-            const oy = Math.cos(i*1.7)*0.25 * size;
+        for (let i=0;i<5;i++) {
+            const ox = Math.sin(i*2.1)*0.3*size;
+            const oy = Math.cos(i*1.7)*0.25*size;
             ctx.beginPath(); ctx.arc(ox, oy, size*0.18, 0, Math.PI*2); ctx.fill();
         }
     } else if (type === 'ingot') {
@@ -519,54 +638,95 @@ function drawIcon(x, y, size, type, color) {
         ctx.closePath(); ctx.fill();
     } else if (type === 'spore') {
         ctx.fillStyle = color;
-        ctx.beginPath(); ctx.ellipse(0, 0, size*0.35, size*0.45, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0,0,size*0.35,size*0.45,0,0,Math.PI*2); ctx.fill();
         ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.beginPath(); ctx.ellipse(0, size*0.1, size*0.2, size*0.25, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0,size*0.1,size*0.2,size*0.25,0,0,Math.PI*2); ctx.fill();
     } else if (type === 'powder') {
         ctx.fillStyle = color;
         ctx.beginPath();
         ctx.moveTo(-size*0.35, size*0.3); ctx.lineTo(-size*0.2, -size*0.25);
         ctx.lineTo(size*0.2, -size*0.25); ctx.lineTo(size*0.35, size*0.3);
         ctx.closePath(); ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.fillRect(-size*0.15, -size*0.2, size*0.3, size*0.12);
     }
     ctx.restore();
 }
 
-function drawInventory() {
-    if (!showInventory) return;
-    const panelW = Math.min(210, VIEW_W * 0.42);
-    const rowH = 28, padding = 10, titleH = 28;
-    const panelH = titleH + RESOURCES.length * rowH + padding * 2;
-    const px = 12, py = 70;
-
-    ctx.fillStyle = 'rgba(10,10,15,0.88)';
-    ctx.fillRect(px, py, panelW, panelH);
-    ctx.strokeStyle = 'rgba(255,140,0,0.4)';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(px, py, panelW, panelH);
-
-    ctx.fillStyle = '#ff8c00';
-    ctx.font = 'bold 13px system-ui';
-    ctx.fillText('ИНВЕНТАРЬ', px + padding, py + 20);
-
-    ctx.font = '12px system-ui';
-    RESOURCES.forEach((res, i) => {
-        const ry = py + titleH + padding + i * rowH;
-        const amount = inventory[res.id] || 0;
-        drawIcon(px + padding + 12, ry + rowH/2 - 2, 16, res.icon, res.color);
-        ctx.fillStyle = '#ddd';
-        ctx.textAlign = 'left';
-        ctx.fillText(res.name, px + padding + 30, ry + 17);
-        ctx.fillStyle = amount > 0 ? '#ffcc66' : '#666';
-        ctx.textAlign = 'right';
-        ctx.fillText(String(amount), px + panelW - padding, ry + 17);
-        ctx.textAlign = 'left';
-    });
+function getShipCargoPanelRect() {
+    // Маленькая панель груза корабля внизу по центру
+    const w = 140, h = 44;
+    return { x: VIEW_W/2 - w/2, y: VIEW_H - 90, w, h };
 }
 
-// === ОТРИСОВКА ===
+function drawInventory() {
+    if (!showInventory) return;
+
+    const panelW = Math.min(220, VIEW_W * 0.45);
+    const rowH = 26;
+    const padding = 8;
+    const titleH = 24;
+
+    // === ЯДРО ===
+    const coreItems = RESOURCES.filter(r => (coreInventory[r.id]||0) > 0);
+    const coreH = titleH + Math.max(1, coreItems.length) * rowH + padding * 2;
+    const px = 10, py = 65;
+
+    ctx.fillStyle = 'rgba(15,15,25,0.9)';
+    ctx.fillRect(px, py, panelW, coreH);
+    ctx.strokeStyle = 'rgba(100,180,255,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(px, py, panelW, coreH);
+
+    ctx.fillStyle = '#6ab0ff';
+    ctx.font = 'bold 12px system-ui';
+    ctx.fillText('ЯДРО (склад)', px + padding, py + 17);
+
+    ctx.font = '11px system-ui';
+    if (coreItems.length === 0) {
+        ctx.fillStyle = '#555';
+        ctx.fillText('пусто', px + padding, py + titleH + 16);
+    } else {
+        coreItems.forEach((res, i) => {
+            const ry = py + titleH + padding + i * rowH;
+            drawIcon(px + padding + 10, ry + rowH/2 - 1, 14, res.icon, res.color);
+            ctx.fillStyle = '#ccc';
+            ctx.textAlign = 'left';
+            ctx.fillText(res.name, px + padding + 26, ry + 15);
+            ctx.fillStyle = '#8cf';
+            ctx.textAlign = 'right';
+            ctx.fillText(String(coreInventory[res.id]), px + panelW - padding, ry + 15);
+            ctx.textAlign = 'left';
+        });
+    }
+
+    // === КОРАБЛЬ (груз) ===
+    const cargoY = py + coreH + 10;
+    const cargoH = 70;
+    ctx.fillStyle = 'rgba(25,15,10,0.9)';
+    ctx.fillRect(px, cargoY, panelW, cargoH);
+    ctx.strokeStyle = 'rgba(255,140,0,0.5)';
+    ctx.strokeRect(px, cargoY, panelW, cargoH);
+
+    ctx.fillStyle = '#ff8c00';
+    ctx.font = 'bold 12px system-ui';
+    ctx.fillText('КОРАБЛЬ (груз)', px + padding, cargoY + 17);
+
+    if (shipCargo.amount > 0 && shipCargo.type) {
+        const res = RESOURCES.find(r => r.id === shipCargo.type);
+        if (res) {
+            drawIcon(px + padding + 12, cargoY + 42, 18, res.icon, res.color);
+            ctx.fillStyle = '#eee';
+            ctx.font = '13px system-ui';
+            ctx.fillText(res.name, px + padding + 32, cargoY + 38);
+            ctx.fillStyle = '#ffcc66';
+            ctx.fillText(shipCargo.amount + ' / ' + PLAYER_MAX, px + padding + 32, cargoY + 55);
+        }
+    } else {
+        ctx.fillStyle = '#555';
+        ctx.font = '12px system-ui';
+        ctx.fillText('пусто (макс 30, 1 тип)', px + padding, cargoY + 42);
+    }
+}
+
 function draw() {
     ctx.clearRect(0, 0, VIEW_W, VIEW_H);
 
@@ -582,21 +742,41 @@ function draw() {
             const sx = x * TILE - camera.x;
             const sy = y * TILE - camera.y;
 
-            ctx.fillStyle = COLORS[type];
-            ctx.fillRect(sx, sy, TILE + 0.5, TILE + 0.5);
+            // Террейн
+            if (type === BLOCK.CORE) {
+                // Ядро рисуем красиво
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fillRect(sx, sy, TILE+0.5, TILE+0.5);
+                ctx.fillStyle = '#3a3a5c';
+                ctx.fillRect(sx+2, sy+2, TILE-4, TILE-4);
+                // Центральная точка ядра
+                if (x === core.x && y === core.y) {
+                    ctx.fillStyle = '#6ab0ff';
+                    ctx.beginPath();
+                    ctx.arc(sx + TILE/2, sy + TILE/2, 4, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.fillStyle = 'rgba(100,180,255,0.3)';
+                    ctx.beginPath();
+                    ctx.arc(sx + TILE/2, sy + TILE/2, 7, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            } else {
+                ctx.fillStyle = COLORS[type];
+                ctx.fillRect(sx, sy, TILE+0.5, TILE+0.5);
 
-            if (type === BLOCK.DIRT || type === BLOCK.FERTILE) {
-                ctx.fillStyle = type === BLOCK.FERTILE ? 'rgba(80,120,40,0.2)' : 'rgba(0,0,0,0.12)';
-                ctx.fillRect(sx + 2, sy + 2, TILE - 4, TILE - 4);
-            }
-            if (type === BLOCK.WATER) {
-                ctx.fillStyle = 'rgba(255,255,255,0.07)';
-                ctx.fillRect(sx + 3, sy + 3, 4, 4);
-            }
-            if (type === BLOCK.WALL) {
-                ctx.strokeStyle = '#333';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
+                if (type === BLOCK.DIRT || type === BLOCK.FERTILE) {
+                    ctx.fillStyle = type === BLOCK.FERTILE ? 'rgba(80,120,40,0.2)' : 'rgba(0,0,0,0.12)';
+                    ctx.fillRect(sx+2, sy+2, TILE-4, TILE-4);
+                }
+                if (type === BLOCK.WATER) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+                    ctx.fillRect(sx+3, sy+3, 4, 4);
+                }
+                if (type === BLOCK.WALL) {
+                    ctx.strokeStyle = '#333';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(sx+0.5, sy+0.5, TILE-1, TILE-1);
+                }
             }
 
             // Руда
@@ -604,20 +784,18 @@ function draw() {
                 const oc = ORE_COLORS[ore];
                 ctx.fillStyle = oc;
                 ctx.globalAlpha = 0.85;
-                ctx.fillRect(sx + 1, sy + 1, TILE - 2, TILE - 2);
+                ctx.fillRect(sx+1, sy+1, TILE-2, TILE-2);
                 ctx.globalAlpha = 1;
-
-                ctx.fillStyle = 'rgba(255,255,255,0.22)';
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
                 ctx.beginPath();
-                ctx.moveTo(sx + 3, sy + 3);
-                ctx.lineTo(sx + TILE - 5, sy + 4);
-                ctx.lineTo(sx + 4, sy + TILE - 6);
+                ctx.moveTo(sx+3, sy+3);
+                ctx.lineTo(sx+TILE-5, sy+4);
+                ctx.lineTo(sx+4, sy+TILE-6);
                 ctx.closePath();
                 ctx.fill();
-
-                ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
                 ctx.lineWidth = 1;
-                ctx.strokeRect(sx + 1.5, sy + 1.5, TILE - 3, TILE - 3);
+                ctx.strokeRect(sx+1.5, sy+1.5, TILE-3, TILE-3);
             }
         }
     }
@@ -666,7 +844,7 @@ function draw() {
     ctx.restore();
 
     // Мини-карта
-    const miniSize = Math.min(110, VIEW_W * 0.22);
+    const miniSize = Math.min(100, VIEW_W*0.2);
     const miniScale = miniSize / MAP_SIZE;
     const mx = VIEW_W - miniSize - 10;
     const my = 60;
@@ -676,31 +854,71 @@ function draw() {
     ctx.strokeStyle = '#555';
     ctx.strokeRect(mx, my, miniSize, miniSize);
 
-    for (let y = 0; y < MAP_SIZE; y += 3) {
-        for (let x = 0; x < MAP_SIZE; x += 3) {
-            let col = COLORS[map[y][x]];
+    for (let y=0; y<MAP_SIZE; y+=3) {
+        for (let x=0; x<MAP_SIZE; x+=3) {
+            let col = COLORS[map[y][x]] || '#333';
             if (oreMap[y][x] !== ORE.NONE) col = ORE_COLORS[oreMap[y][x]];
+            if (map[y][x] === BLOCK.CORE) col = '#6ab0ff';
             ctx.fillStyle = col;
             ctx.fillRect(mx + x*miniScale, my + y*miniScale, miniScale*3+0.5, miniScale*3+0.5);
         }
     }
+    // Корабль на миникарте
     ctx.fillStyle = '#ff8c00';
     ctx.beginPath();
     ctx.arc(mx + ship.x*miniScale, my + ship.y*miniScale, 3, 0, Math.PI*2);
     ctx.fill();
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    // Рамка видимой области
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(mx + (camera.x/TILE)*miniScale, my + (camera.y/TILE)*miniScale,
+    ctx.strokeRect(mx+(camera.x/TILE)*miniScale, my+(camera.y/TILE)*miniScale,
                    (VIEW_W/TILE)*miniScale, (VIEW_H/TILE)*miniScale);
 
+    // Инвентарь
     drawInventory();
+
+    // Панель груза корабля внизу (для перетаскивания)
+    if (shipCargo.amount > 0) {
+        const panel = getShipCargoPanelRect();
+        ctx.fillStyle = 'rgba(30,20,10,0.85)';
+        ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+        ctx.strokeStyle = '#ff8c00';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(panel.x, panel.y, panel.w, panel.h);
+
+        const res = RESOURCES.find(r => r.id === shipCargo.type);
+        if (res) {
+            drawIcon(panel.x + 22, panel.y + 22, 16, res.icon, res.color);
+            ctx.fillStyle = '#eee';
+            ctx.font = '12px system-ui';
+            ctx.fillText(res.name, panel.x + 42, panel.y + 18);
+            ctx.fillStyle = '#ffcc66';
+            ctx.fillText(shipCargo.amount + '/' + PLAYER_MAX, panel.x + 42, panel.y + 34);
+        }
+
+        // Подсказка
+        ctx.fillStyle = '#888';
+        ctx.font = '10px system-ui';
+        ctx.fillText('Перетащи на ядро', panel.x + 8, panel.y + panel.h - 4);
+    }
+
+    // Если тащим груз — рисуем иконку у курсора
+    if (isDraggingCargo && shipCargo.amount > 0) {
+        const res = RESOURCES.find(r => r.id === shipCargo.type);
+        if (res) {
+            drawIcon(lastTouchX, lastTouchY, 20, res.icon, res.color);
+            ctx.fillStyle = '#ffcc66';
+            ctx.font = 'bold 14px system-ui';
+            ctx.fillText(String(shipCargo.amount), lastTouchX + 16, lastTouchY + 6);
+        }
+    }
 }
 
 // === ЦИКЛ ===
 let lastTime = performance.now();
 function loop(now) {
-    const dt = Math.min(0.033, (now - lastTime) / 1000);
+    const dt = Math.min(0.033, (now - lastTime)/1000);
     lastTime = now;
     update(dt);
     draw();
