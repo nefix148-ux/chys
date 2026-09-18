@@ -146,13 +146,13 @@ const BUILDING_DEFS={
   [BTYPE.FORESHADOW]:def({name:'Знамение',size:4,color:'#e0e0f0',category:'turret',health:1000,range:55,reload:3,damage:200,ammo:['surge'],powerUse:60}),
   [BTYPE.SPECTRE]:def({name:'Спектр',size:4,color:'#c04040',category:'turret',health:1200,range:28,reload:.15,damage:30,ammo:['graphite','thorium','pyratite','surge']}),
   [BTYPE.MELTDOWN]:def({name:'Испепелитель',size:4,color:'#ff4040',category:'turret',health:1100,range:24,reload:.05,damage:15,powerUse:120,liqAmmo:['cryo']}),
-  [BTYPE.MENDER]:def({name:'Ремонтник',size:1,color:'#60d080',category:'factory',health:80,powerUse:12,range:5,heal:8}),
-  [BTYPE.MEND_PROJECTOR]:def({name:'Рем. проектор',size:2,color:'#50c070',category:'factory',health:160,powerUse:60,range:10,heal:20}),
-  [BTYPE.OVERDRIVE]:def({name:'Ускоритель',size:2,color:'#e0c040',category:'factory',health:180,powerUse:90,range:8,boost:1.25}),
-  [BTYPE.OVERDRIVE_DOME]:def({name:'Купол ускор.',size:3,color:'#e0b020',category:'factory',health:300,powerUse:180,range:14,boost:1.5}),
-  [BTYPE.FORCE_PROJECTOR]:def({name:'Силовой купол',size:3,color:'#60a0ff',category:'factory',health:400,powerUse:180,range:12,shield:1000}),
-  [BTYPE.SHOCK_MINE]:def({name:'Мина',size:1,color:'#a04040',category:'factory',health:40,damage:60}),
-  [BTYPE.ILLUMINATOR]:def({name:'Фонарь',size:1,color:'#ffffa0',category:'factory',health:40,powerUse:3}),
+  [BTYPE.MENDER]:def({name:'Ремонтник',size:1,color:'#60d080',category:'util',health:80,powerUse:12,range:5,heal:8}),
+  [BTYPE.MEND_PROJECTOR]:def({name:'Рем. проектор',size:2,color:'#50c070',category:'util',health:160,powerUse:60,range:10,heal:20}),
+  [BTYPE.OVERDRIVE]:def({name:'Ускоритель',size:2,color:'#e0c040',category:'util',health:180,powerUse:90,range:8,boost:1.25}),
+  [BTYPE.OVERDRIVE_DOME]:def({name:'Купол ускор.',size:3,color:'#e0b020',category:'util',health:300,powerUse:180,range:14,boost:1.5}),
+  [BTYPE.FORCE_PROJECTOR]:def({name:'Силовой купол',size:3,color:'#60a0ff',category:'util',health:400,powerUse:180,range:12,shield:1000}),
+  [BTYPE.SHOCK_MINE]:def({name:'Мина',size:1,color:'#a04040',category:'util',health:40,damage:60}),
+  [BTYPE.ILLUMINATOR]:def({name:'Фонарь',size:1,color:'#ffffa0',category:'util',health:40,powerUse:3}),
   [BTYPE.GROUND_FACTORY]:def({name:'Наземн. завод',size:3,color:'#8a7050',category:'units',health:500,powerUse:72,itemCap:20,unitType:'dagger',unitTime:15,unitCost:{lead:10,silicon:10}}),
   [BTYPE.AIR_FACTORY]:def({name:'Воздушн. завод',size:3,color:'#6a8aaa',category:'units',health:500,powerUse:72,itemCap:20,unitType:'flare',unitTime:15,unitCost:{copper:15,silicon:15}}),
   [BTYPE.NAVAL_FACTORY]:def({name:'Морской завод',size:3,color:'#4a80a0',category:'units',health:500,powerUse:72,itemCap:20,unitType:'risso',unitTime:20,unitCost:{metaglass:20,silicon:15}}),
@@ -184,7 +184,7 @@ const UNIT_DEFS={
   enemy2:{name:'Тяж. враг',hp:200,speed:.55,damage:18,range:12,color:'#c02020',size:13,tier:2,line:'enemy'}
 };
 const UPGRADE_MAP={dagger:'mace',mace:'fortress',fortress:'scepter',scepter:'reign',flare:'horizon',horizon:'zenith',risso:'minke'};
-const CAT_MAP={factory:[],units:[],logic:[],power:[],walls:[],transport:[],liquid:[],drill:[],turret:[]};
+const CAT_MAP={factory:[],units:[],logic:[],power:[],walls:[],transport:[],liquid:[],drill:[],turret:[],util:[]};
 for(const [k,v] of Object.entries(BUILDING_DEFS)){
   const cat=v.category||'factory';
   if(CAT_MAP[cat])CAT_MAP[cat].push(+k);
@@ -193,11 +193,12 @@ for(const [k,v] of Object.entries(BUILDING_DEFS)){
 const CATEGORIES=[
   {id:'factory',name:'Заводы',side:'left',row:0,blocks:CAT_MAP.factory},
   {id:'units',name:'Юниты',side:'right',row:0,blocks:CAT_MAP.units},
-  {id:'power',name:'Энергия',side:'left',row:1,blocks:CAT_MAP.power},
-  {id:'walls',name:'Стены',side:'right',row:1,blocks:CAT_MAP.walls},
-  {id:'transport',name:'Транспорт',side:'left',row:2,blocks:CAT_MAP.transport},
-  {id:'liquid',name:'Жидкости',side:'right',row:2,blocks:CAT_MAP.liquid},
-  {id:'drill',name:'Буры',side:'left',row:3,blocks:CAT_MAP.drill},
-  {id:'turret',name:'Турели',side:'right',row:3,blocks:CAT_MAP.turret},
-  {id:'logic',name:'Логика',side:'left',row:4,blocks:CAT_MAP.logic}
+  {id:'util',name:'Утилиты',side:'left',row:1,blocks:CAT_MAP.util},
+  {id:'power',name:'Энергия',side:'right',row:1,blocks:CAT_MAP.power},
+  {id:'walls',name:'Стены',side:'left',row:2,blocks:CAT_MAP.walls},
+  {id:'transport',name:'Транспорт',side:'right',row:2,blocks:CAT_MAP.transport},
+  {id:'liquid',name:'Жидкости',side:'left',row:3,blocks:CAT_MAP.liquid},
+  {id:'drill',name:'Буры',side:'right',row:3,blocks:CAT_MAP.drill},
+  {id:'turret',name:'Турели',side:'left',row:4,blocks:CAT_MAP.turret},
+  {id:'logic',name:'Логика',side:'right',row:4,blocks:CAT_MAP.logic}
 ];
