@@ -63,16 +63,32 @@ function getTileFromScreen(sx,sy){const w=screenToWorld(sx,sy);return{x:Math.flo
 function distToCore(tx,ty){return Math.max(Math.abs(tx-core.x),Math.abs(ty-core.y))}
 function tryMine(tx,ty){
   if(tx<=0||ty<=0||tx>=MAP_SIZE-1||ty>=MAP_SIZE-1)return;
-  const ore=oreMap[ty][tx],inCore=distToCore(tx,ty)<=CORE_RANGE;
-  if(ore===ORE.NONE&&map[ty][tx]===BLOCK.FERTILE){
-    if(inCore)coreInventory.sand=(coreInventory.sand||0)+1;
-    else if((shipCargo.type===null||shipCargo.type==='sand')&&shipCargo.amount<PLAYER_MAX){shipCargo.type='sand';shipCargo.amount++}
+  const ore=oreMap[ty]?.[tx]??ORE.NONE;
+  const inCore=distToCore(tx,ty)<=CORE_RANGE;
+  if(ore!==ORE.NONE&&!PLAYER_FORBIDDEN.has(ore)){
+    const resId=ORE_TO_ID[ore];
+    if(!resId)return;
+    if(inCore){coreInventory[resId]=(coreInventory[resId]||0)+1;return}
+    if(shipCargo.type===null||shipCargo.type===resId){
+      if(shipCargo.amount<PLAYER_MAX){shipCargo.type=resId;shipCargo.amount++}
+    }
     return;
   }
-  if(ore===ORE.NONE||PLAYER_FORBIDDEN.has(ore))return;
-  const resId=ORE_TO_ID[ore];
-  if(inCore)coreInventory[resId]=(coreInventory[resId]||0)+1;
-  else if((shipCargo.type===null||shipCargo.type===resId)&&shipCargo.amount<PLAYER_MAX){shipCargo.type=resId;shipCargo.amount++}
+  const tile=map[ty]?.[tx];
+  if(tile===BLOCK.FERTILE||tile===BLOCK.DIRT){
+    if(inCore){coreInventory.sand=(coreInventory.sand||0)+1;return}
+    if(shipCargo.type===null||shipCargo.type==='sand'){
+      if(shipCargo.amount<PLAYER_MAX){shipCargo.type='sand';shipCargo.amount++}
+    }
+  }
+}
+function tryDepositToCore(){
+  if(shipCargo.amount<=0||!shipCargo.type)return false;
+  const dist=Math.hypot(ship.x-(core.x+0.5),ship.y-(core.y+0.5));
+  if(dist>8)return false;
+  coreInventory[shipCargo.type]=(coreInventory[shipCargo.type]||0)+shipCargo.amount;
+  shipCargo.type=null;shipCargo.amount=0;
+  return true;
 }
 function canPlace(tx,ty,type,ignoreGhosts){
   const def=BUILDING_DEFS[type];if(!def)return false;const s=def.size;
@@ -214,9 +230,9 @@ function handlePointerUp(cx,cy,ptype){
   if(tile.x<0||tile.y<0||tile.x>=MAP_SIZE||tile.y>=MAP_SIZE)return;
   if(removeGhostAt(tile.x,tile.y))return;
   const distShipToCore=Math.sqrt((ship.x-core.x)**2+(ship.y-core.y)**2);
-  if(map[tile.y][tile.x]===BLOCK.CORE&&distShipToCore<=6){
-    if(shipCargo.amount>0&&shipCargo.type){coreInventory[shipCargo.type]=(coreInventory[shipCargo.type]||0)+shipCargo.amount;shipCargo.type=null;shipCargo.amount=0;showCoreInv=true;return}
-    showCoreInv=!showCoreInv;return;
+  if(map[tile.y][tile.x]===BLOCK.CORE||distShipToCore<=8){
+    if(tryDepositToCore()){showCoreInv=true;return}
+    if(map[tile.y][tile.x]===BLOCK.CORE){showCoreInv=!showCoreInv;return}
   }
   if(buildMode==='delete'){const key=getMainBuildingKey(tile.x,tile.y);if(key){if(deleteSel.has(key))deleteSel.delete(key);else deleteSel.add(key)}return}
   if(buildMode==='place'&&selectedBlock!=null){if(canPlace(tile.x,tile.y,selectedBlock))ghosts.push({x:tile.x,y:tile.y,type:selectedBlock,dir:selectedDir});return}
