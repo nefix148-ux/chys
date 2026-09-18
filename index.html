@@ -6,25 +6,32 @@
 <title>Космический набросок</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;touch-action:none}
-html,body{width:100%;height:100%;background:#0a0a0a;color:#eee;font-family:system-ui,-apple-system,sans-serif;overflow:hidden}
-canvas{display:block;width:100%;height:100%}
+html,body{width:100%;height:100%;background:#0a0a0a;color:#eee;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;position:fixed}
+#ui{position:absolute;top:0;left:0;right:0;z-index:10;pointer-events:none;padding:8px 10px}
+h1{font-size:1rem;color:#ff8c00;text-shadow:0 0 12px rgba(255,140,0,.6);margin-bottom:2px}
+.info{font-size:.65rem;color:#aaa;line-height:1.3}
+canvas{display:block;width:100%;height:100%;background:#0a0a0a}
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+<div id="ui"><h1>Космический набросок</h1><div class="info">Свайп — движение · двойной тап — добыча · R — поворот · Q — инфо блока</div></div>
+<canvas id="game"></canvas>
 <script>
-// === CONFIG ===
-const TILE=24,MAP_SIZE=160,VIEW_W=innerWidth,VIEW_H=innerHeight;
-const PLAYER_MAX=30;
-const DIR={RIGHT:0,DOWN:1,LEFT:2,UP:3};
-const DIR_VEC=[{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+const canvas=document.getElementById('game');
+const ctx=canvas.getContext('2d');
+let VIEW_W=0,VIEW_H=0;
+function resize(){VIEW_W=window.innerWidth;VIEW_H=window.innerHeight;canvas.width=VIEW_W*devicePixelRatio;canvas.height=VIEW_H*devicePixelRatio;canvas.style.width=VIEW_W+'px';canvas.style.height=VIEW_H+'px';ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}
+window.addEventListener('resize',resize);resize();
 
-// === BLOCKS ===
+const MAP_SIZE=160,TILE=16,CORE_RANGE=20,PLAYER_MAX=30;
 const BLOCK={WALL:0,DIRT:1,FERTILE:2,WATER:3,CORE:4,HOT:5};
 const COLORS={[BLOCK.WALL]:'#555',[BLOCK.DIRT]:'#8B5A2B',[BLOCK.FERTILE]:'#5C4033',[BLOCK.WATER]:'#1E90FF',[BLOCK.CORE]:'#2a2a3a',[BLOCK.HOT]:'#c44a1a'};
-const ORE={NONE:0,COPPER:1,LEAD:2,COAL:3,TITANIUM:4,THORIUM:5,METALOM:6,SAND:7};
-const ORE_COLORS={[ORE.COPPER]:'#d99d73',[ORE.LEAD]:'#8c8c8c',[ORE.COAL]:'#333',[ORE.TITANIUM]:'#8da1b0',[ORE.THORIUM]:'#f9a825',[ORE.METALOM]:'#6a6a6a',[ORE.SAND]:'#e8d4a0'};
-const ORE_TO_ID={[ORE.COPPER]:'copper',[ORE.LEAD]:'lead',[ORE.COAL]:'coal',[ORE.TITANIUM]:'titanium',[ORE.THORIUM]:'thorium',[ORE.METALOM]:'metalom',[ORE.SAND]:'sand'};
+const ORE={NONE:0,COPPER:1,LEAD:2,COAL:3,TITANIUM:4,THORIUM:5,METALOM:6};
+const ORE_COLORS={[ORE.COPPER]:'#d99d73',[ORE.LEAD]:'#8c8c8c',[ORE.COAL]:'#333',[ORE.TITANIUM]:'#8da1b0',[ORE.THORIUM]:'#f9a825',[ORE.METALOM]:'#6a6a6a'};
+const ORE_TO_ID={[ORE.COPPER]:'copper',[ORE.LEAD]:'lead',[ORE.COAL]:'coal',[ORE.TITANIUM]:'titanium',[ORE.THORIUM]:'thorium',[ORE.METALOM]:'metalom'};
+const DIR={RIGHT:0,DOWN:1,LEFT:2,UP:3};
+const DIR_VEC=[{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+const DIR_ARROW=['→','↓','←','↑'];
 
 // === RESOURCES (items + liquids) ===
 const RESOURCES=[
@@ -72,7 +79,6 @@ function def(o){
 }
 
 const BUILDING_DEFS={
-  // transport
   [BTYPE.CONVEYOR]:def({name:'Конвейер',size:1,color:'#8a8a8a',speed:.08,directional:true,category:'transport',desc:'Базовый конвейер предметов'}),
   [BTYPE.TITANIUM_CONVEYOR]:def({name:'Титан. конв.',size:1,color:'#8da1b0',speed:.16,directional:true,category:'transport',desc:'Быстрый конвейер'}),
   [BTYPE.PLASTANIUM_CONVEYOR]:def({name:'Пластан. конв.',size:1,color:'#9eff7a',speed:.06,directional:true,category:'transport',desc:'Пакетный конвейер (10 шт)'}),
@@ -86,7 +92,6 @@ const BUILDING_DEFS={
   [BTYPE.INV_GATE]:def({name:'Инв. затвор',size:1,color:'#884488',directional:true,category:'transport',desc:'Inverted overflow'}),
   [BTYPE.DISTRIBUTOR]:def({name:'Распределитель',size:2,color:'#cc8844',category:'transport',desc:'Маршрутизатор 2x2'}),
   [BTYPE.UNLOADER]:def({name:'Разгрузчик',size:1,color:'#6ab0ff',directional:true,category:'transport',desc:'Выгружает предмет из блока/ядра'}),
-  // drills
   [BTYPE.MECH_DRILL]:def({name:'Мех. бур',size:2,color:'#8a7050',itemCap:10,liqCap:30,category:'drill',
     mine:{sand:.4,copper:.36,lead:.36,coal:.34},boostWater:3,boostMul:2.56,
     desc:'Механический бур 2x2. Вода x2.56'}),
@@ -99,7 +104,6 @@ const BUILDING_DEFS={
   [BTYPE.AIRBLAST_DRILL]:def({name:'Воздуш. бур',size:4,color:'#90c0e0',itemCap:20,liqCap:60,powerUse:180,category:'drill',
     mine:{sand:3.42,copper:2.9,lead:2.9,coal:2.52,titanium:2.23,thorium:2.0},boostWater:6,boostMul:3.24,
     desc:'Воздушный бур 4x4. 180 э/с. Вода x3.24'}),
-  // liquid
   [BTYPE.CONDUIT]:def({name:'Трубопровод',size:1,color:'#4a90d0',directional:true,category:'liquid',desc:'Труба для жидкостей'}),
   [BTYPE.PULSE_CONDUIT]:def({name:'Имп. трубопровод',size:1,color:'#6ab0ff',directional:true,category:'liquid',desc:'Быстрая труба'}),
   [BTYPE.LIQUID_ROUTER]:def({name:'Жидк. маршрутиз.',size:1,color:'#3a70b0',category:'liquid',desc:'Маршрутизатор жидкостей'}),
@@ -117,7 +121,6 @@ const BUILDING_DEFS={
     desc:'1 песок+9 воды → 15 нефти/с на плодородной'}),
   [BTYPE.CULTIVATOR]:def({name:'Культиватор',size:2,color:'#50a040',liqCap:60,itemCap:10,powerUse:80,category:'liquid',
     desc:'18 воды → 1 спора / 1.666с'}),
-  // power
   [BTYPE.POWER_NODE]:def({name:'Силовой узел',size:1,color:'#e0c040',powerRange:6,powerLinks:10,category:'power',desc:'ЛЭП 6 клеток, 10 связей'}),
   [BTYPE.LARGE_POWER_NODE]:def({name:'Больш. силовой узел',size:2,color:'#e0b030',powerRange:15,powerLinks:15,category:'power',desc:'ЛЭП 15 клеток, 15 связей'}),
   [BTYPE.SURGE_TOWER]:def({name:'Кинет. вышка',size:1,color:'#f3e03b',powerRange:40,powerLinks:2,category:'power',desc:'Дальность 40, 2 связи'}),
@@ -139,7 +142,6 @@ const BUILDING_DEFS={
     desc:'1 торий + 2.4 крио/с → 900 э/с. Без крио — взрыв!'}),
   [BTYPE.IMPACT_REACTOR]:def({name:'Импульсный реактор',size:4,color:'#ff60a0',liqCap:80,itemCap:10,powerUse:1500,powerGen:7800,category:'power',
     desc:'15 крио + 1 взрыв/с. Нетто +6300 э/с'}),
-  // production
   [BTYPE.GRAPHITE_PRESS]:def({name:'Графит. пресс',size:2,color:'#707070',itemCap:10,category:'util',
     recipe:{in:{coal:2},out:{graphite:1},time:1.5},desc:'2 угля → 1 графит / 1.5с'}),
   [BTYPE.MULTI_PRESS]:def({name:'Улучш. пресс',size:3,color:'#606060',liqCap:60,itemCap:20,powerUse:108,category:'util',
@@ -177,7 +179,6 @@ const BUILDING_DEFS={
   [BTYPE.INCINERATOR]:def({name:'Мусорозжигатель',size:1,color:'#404040',powerUse:30,category:'util',desc:'Уничтожает предметы и жидкости'})
 };
 
-// Categories for menu
 const CATEGORIES=[
   {id:'transport',name:'Транспорт',blocks:[BTYPE.CONVEYOR,BTYPE.TITANIUM_CONVEYOR,BTYPE.PLASTANIUM_CONVEYOR,BTYPE.JUNCTION,BTYPE.BRIDGE,BTYPE.PHASE_BRIDGE,BTYPE.ROUTER,BTYPE.SORTER,BTYPE.INV_SORTER,BTYPE.GATE,BTYPE.INV_GATE,BTYPE.DISTRIBUTOR,BTYPE.UNLOADER]},
   {id:'drill',name:'Добыча',blocks:[BTYPE.MECH_DRILL,BTYPE.PNEU_DRILL,BTYPE.LASER_DRILL,BTYPE.AIRBLAST_DRILL,BTYPE.WATER_EXTRACTOR,BTYPE.OIL_EXTRACTOR,BTYPE.CULTIVATOR]},
@@ -187,326 +188,241 @@ const CATEGORIES=[
 ];
 
 // === STATE ===
-const canvas=document.getElementById('c');
-const ctx=canvas.getContext('2d');
 let map=[],oreMap=[],buildMap=[],items=[],liquidItems=[];
 let core={x:0,y:0},coreInventory={};
 let ship={x:0,y:0,vx:0,vy:0,angle:0,size:10};
 const shipCargo={type:null,amount:0};
-let camera={x:0,y:0};
+let camera={x:0,y:0,targetX:0,targetY:0};
 let selectedBlock=null,selectedDir=DIR.RIGHT,buildMode='place';
 let ghosts=[],deleteSel=new Set(),showCoreInv=false,showBlockInfo=false,infoBlock=null;
 let globalPower=0,globalPowerGen=0,globalPowerUse=0,globalPowerCap=0;
-let dayNight=0.5; // 0 night 1 day
-let menuScroll=0,menuDown=false;
-let lastTime=performance.now();
+let dayNight=0.5; // 0 night .. 1 day
 
-// === INIT ===
+// === MAP GENERATION ===
 function generateMap(){
   map=[];oreMap=[];buildMap=[];items=[];liquidItems=[];showCoreInv=false;ghosts=[];deleteSel.clear();
-  for(let y=0;y<MAP_SIZE;y++){
-    map[y]=[];oreMap[y]=[];buildMap[y]=[];
-    for(let x=0;x<MAP_SIZE;x++){
-      map[y][x]=BLOCK.DIRT;oreMap[y][x]=ORE.NONE;buildMap[y][x]=null;
-    }
-  }
-  // walls border
+  for(let y=0;y<MAP_SIZE;y++){map[y]=[];oreMap[y]=[];buildMap[y]=[];for(let x=0;x<MAP_SIZE;x++){map[y][x]=BLOCK.DIRT;oreMap[y][x]=ORE.NONE;buildMap[y][x]=null}}
+  // borders
   for(let i=0;i<MAP_SIZE;i++){map[0][i]=map[MAP_SIZE-1][i]=map[i][0]=map[i][MAP_SIZE-1]=BLOCK.WALL}
-  // fertile patches
-  for(let f=0;f<40;f++){
-    const cx=10+Math.floor(Math.random()*(MAP_SIZE-20)),cy=10+Math.floor(Math.random()*(MAP_SIZE-20)),r=3+Math.floor(Math.random()*5);
-    for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){
-      if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;
-      if(Math.sqrt((x-cx)**2+(y-cy)**2)<r-Math.random()*1.2)map[y][x]=BLOCK.FERTILE;
-    }
-  }
-  // water
-  for(let w=0;w<12;w++){
-    const cx=10+Math.floor(Math.random()*(MAP_SIZE-20)),cy=10+Math.floor(Math.random()*(MAP_SIZE-20)),r=2+Math.floor(Math.random()*4);
-    for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){
-      if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;
-      if(Math.sqrt((x-cx)**2+(y-cy)**2)<r-Math.random())map[y][x]=BLOCK.WATER;
-    }
-  }
+  // water lakes
+  for(let w=0;w<12+Math.random()*8;w++){const cx=8+Math.floor(Math.random()*(MAP_SIZE-16)),cy=8+Math.floor(Math.random()*(MAP_SIZE-16)),r=3+Math.floor(Math.random()*7);for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;if(Math.sqrt((x-cx)**2+(y-cy)**2)<r-Math.random()*1.5)map[y][x]=BLOCK.WATER}}
+  // fertile
+  for(let f=0;f<16+Math.random()*10;f++){const cx=10+Math.floor(Math.random()*(MAP_SIZE-20)),cy=10+Math.floor(Math.random()*(MAP_SIZE-20)),r=6+Math.floor(Math.random()*12);for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1||map[y][x]===BLOCK.WATER)continue;if(Math.sqrt((x-cx)**2+(y-cy)**2)<r-Math.random()*3.5)map[y][x]=BLOCK.FERTILE}}
   // hot tiles
-  for(let h=0;h<8+Math.random()*6;h++){
-    const cx=10+Math.floor(Math.random()*(MAP_SIZE-20)),cy=10+Math.floor(Math.random()*(MAP_SIZE-20)),r=2+Math.floor(Math.random()*4);
-    for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){
-      if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;
-      if(map[y][x]===BLOCK.WATER||map[y][x]===BLOCK.WALL)continue;
-      if(Math.sqrt((x-cx)**2+(y-cy)**2)<r-Math.random()*1.5)map[y][x]=BLOCK.HOT;
-    }
-  }
+  for(let h=0;h<8+Math.random()*6;h++){const cx=10+Math.floor(Math.random()*(MAP_SIZE-20)),cy=10+Math.floor(Math.random()*(MAP_SIZE-20)),r=2+Math.floor(Math.random()*4);for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;if(map[y][x]===BLOCK.WATER||map[y][x]===BLOCK.WALL)continue;if(Math.sqrt((x-cx)**2+(y-cy)**2)<r-Math.random()*1.5)map[y][x]=BLOCK.HOT}}
   // core
   core.x=Math.floor(MAP_SIZE/2);core.y=Math.floor(MAP_SIZE/2);
-  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
-    map[core.y+dy][core.x+dx]=BLOCK.CORE;
-  }
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const x=core.x+dx,y=core.y+dy;if(x>0&&y>0&&x<MAP_SIZE-1&&y<MAP_SIZE-1)map[y][x]=BLOCK.CORE}
   // ores clusters
-  const oreTypes=[
-    {type:ORE.COPPER,count:18,minR:2,maxR:5},
-    {type:ORE.LEAD,count:14,minR:2,maxR:4},
-    {type:ORE.COAL,count:12,minR:2,maxR:4},
-    {type:ORE.SAND,count:20,minR:2,maxR:6},
-    {type:ORE.TITANIUM,count:8,minR:1,maxR:3},
-    {type:ORE.THORIUM,count:5,minR:1,maxR:2},
-    {type:ORE.METALOM,count:6,minR:1,maxR:3}
-  ];
-  const centers=[];
-  for(const ore of oreTypes){
-    let pl=0,att=0;
-    while(pl<ore.count&&att<ore.count*30){
-      att++;
-      const cx=10+Math.floor(Math.random()*(MAP_SIZE-20)),cy=10+Math.floor(Math.random()*(MAP_SIZE-20));
-      const radius=ore.minR+Math.floor(Math.random()*(ore.maxR-ore.minR+1));
-      if(centers.some(p=>Math.sqrt((cx-p.x)**2+(cy-p.y)**2)<radius+p.r+3))continue;
-      if(Math.abs(cx-core.x)<radius+3&&Math.abs(cy-core.y)<radius+3)continue;
-      let free=0,tot=0;
-      for(let y=cy-radius;y<=cy+radius;y++)for(let x=cx-radius;x<=cx+radius;x++){
-        if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;
-        if(Math.sqrt((x-cx)**2+(y-cy)**2)>radius)continue;
-        tot++;
-        if(oreMap[y][x]===ORE.NONE&&(map[y][x]===BLOCK.DIRT||map[y][x]===BLOCK.FERTILE||map[y][x]===BLOCK.HOT))free++;
-      }
-      if(tot===0||free/tot<.5)continue;
-      for(let y=cy-radius;y<=cy+radius;y++)for(let x=cx-radius;x<=cx+radius;x++){
-        if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;
-        if(map[y][x]===BLOCK.WATER||map[y][x]===BLOCK.WALL||map[y][x]===BLOCK.CORE)continue;
-        if(oreMap[y][x]!==ORE.NONE)continue;
-        if(Math.sqrt((x-cx)**2+(y-cy)**2)<radius-Math.random()*1.8)oreMap[y][x]=ore.type;
-      }
-      centers.push({x:cx,y:cy,r:radius});pl++;
-    }
-  }
+  const oreTypes=[{type:ORE.COPPER,count:14,minR:3,maxR:7},{type:ORE.LEAD,count:12,minR:3,maxR:6},{type:ORE.COAL,count:10,minR:2,maxR:5},{type:ORE.TITANIUM,count:7,minR:2,maxR:4},{type:ORE.THORIUM,count:4,minR:2,maxR:3},{type:ORE.METALOM,count:5,minR:2,maxR:4}];
+  const centers=[];for(const ore of oreTypes){let pl=0,att=0;while(pl<ore.count&&att<ore.count*30){att++;const cx=10+Math.floor(Math.random()*(MAP_SIZE-20)),cy=10+Math.floor(Math.random()*(MAP_SIZE-20)),radius=ore.minR+Math.floor(Math.random()*(ore.maxR-ore.minR+1));if(centers.some(p=>Math.sqrt((cx-p.x)**2+(cy-p.y)**2)<radius+p.r+3))continue;if(Math.abs(cx-core.x)<radius+3&&Math.abs(cy-core.y)<radius+3)continue;let free=0,tot=0;for(let y=cy-radius;y<=cy+radius;y++)for(let x=cx-radius;x<=cx+radius;x++){if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;if(Math.sqrt((x-cx)**2+(y-cy)**2)>radius)continue;tot++;if(oreMap[y][x]===ORE.NONE&&(map[y][x]===BLOCK.DIRT||map[y][x]===BLOCK.FERTILE||map[y][x]===BLOCK.HOT))free++}if(tot===0||free/tot<.5)continue;for(let y=cy-radius;y<=cy+radius;y++)for(let x=cx-radius;x<=cx+radius;x++){if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)continue;if(map[y][x]===BLOCK.WATER||map[y][x]===BLOCK.WALL||map[y][x]===BLOCK.CORE)continue;if(oreMap[y][x]!==ORE.NONE)continue;if(Math.sqrt((x-cx)**2+(y-cy)**2)<radius-Math.random()*1.8)oreMap[y][x]=ore.type}centers.push({x:cx,y:cy,r:radius});pl++}}
   RESOURCES.forEach(r=>coreInventory[r.id]=0);shipCargo.type=null;shipCargo.amount=0;
 }
 
-function spawnShip(){
-  ship.x=core.x+2;ship.y=core.y;ship.vx=0;ship.vy=0;ship.angle=0;
-  camera.x=ship.x*TILE-VIEW_W/2;camera.y=ship.y*TILE-VIEW_H/2;
-}
+function spawnShip(){ship.x=core.x+.5;ship.y=core.y-2.5;ship.vx=0;ship.vy=0;ship.angle=-Math.PI/2;camera.x=ship.x*TILE-VIEW_W/2;camera.y=ship.y*TILE-VIEW_H/2;camera.targetX=camera.x;camera.targetY=camera.y}
 
 // === INPUT ===
-let pointers=new Map();
-canvas.addEventListener('pointerdown',e=>{
-  e.preventDefault();
-  canvas.setPointerCapture(e.pointerId);
-  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,t:performance.now()});
-  menuDown=true;
-  handlePointerDown(e.clientX,e.clientY);
-});
-canvas.addEventListener('pointermove',e=>{
-  e.preventDefault();
-  const p=pointers.get(e.pointerId);if(!p)return;
-  p.x=e.clientX;p.y=e.clientY;
-  if(pointers.size===1&&Math.hypot(p.x-p.sx,p.y-p.sy)>8){
-    // pan camera
-    camera.x-=(p.x-p.sx)*(VIEW_W/canvas.clientWidth);
-    camera.y-=(p.y-p.sy)*(VIEW_H/canvas.clientHeight);
-    p.sx=p.x;p.sy=p.y;
+let pointers={},lastTap=0,menuDown=false;
+function handlePointerDown(sx,sy,type){
+  const now=performance.now();
+  if(now-lastTap<280){// double
+    const tile=getTileFromScreen(sx,sy);
+    tryMine(tile.x,tile.y);
+    lastTap=0;return;
   }
-});
-canvas.addEventListener('pointerup',e=>{
-  e.preventDefault();
-  const p=pointers.get(e.pointerId);if(!p)return;
-  pointers.delete(e.pointerId);
-  if(Math.hypot(p.x-p.sx,p.y-p.sy)<10&&performance.now()-p.t<300){
-    handlePointerUp(e.clientX,e.clientY);
-  }
-  menuDown=false;
-});
-canvas.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);menuDown=false});
-
-window.addEventListener('keydown',e=>{
-  if(e.code==='KeyR'){selectedDir=(selectedDir+1)%4;if(ghosts.length)ghosts[ghosts.length-1].dir=selectedDir}
-  if(e.code==='Escape'){ghosts=[];deleteSel.clear();showBlockInfo=false}
-  if(e.code==='KeyQ')showBlockInfo=!showBlockInfo;
-});
-
-function screenToTile(sx,sy){
-  const rect=canvas.getBoundingClientRect();
-  const x=(sx-rect.left)*(VIEW_W/rect.width)+camera.x;
-  const y=(sy-rect.top)*(VIEW_H/rect.height)+camera.y;
-  return {x:Math.floor(x/TILE),y:Math.floor(y/TILE)};
-}
-
-function handlePointerDown(sx,sy){
-  const hit=hitTestUI(sx,sy);
-  if(hit){
-    if(hit.type==='mode'){
-      if(buildMode==='place'){buildMode='delete';/* ghosts stay */}
-      else{buildMode='place';deleteSel.clear()}
-      return;
-    }
-    if(hit.type==='cat'){
-      if(hit.cat.blocks.length){selectedBlock=hit.cat.blocks[0];buildMode='place';deleteSel.clear()}
-      return;
-    }
-    if(hit.type==='block'){
-      selectedBlock=hit.block;buildMode='place';selectedDir=DIR.RIGHT;deleteSel.clear();showBlockInfo=false;
-      return;
-    }
-    if(hit.type==='confirm'){
-      if(buildMode==='place'&&ghosts.length){
-        for(const g of ghosts)placeBuilding(g.x,g.y,g.type,g.dir);
-        ghosts=[];
-      }else if(buildMode==='delete'&&deleteSel.size){
-        for(const key of deleteSel){
-          const [x,y]=key.split(',').map(Number);
-          removeBuilding(x,y);
-        }
-        deleteSel.clear();
-      }
-      return;
-    }
-    if(hit.type==='info'){
-      showBlockInfo=!showBlockInfo;
-      return;
-    }
-  }
-  // Always allow removing ghosts by clicking them
-  const tile=screenToTile(sx,sy);
-  if(tryRemoveGhost(tile.x,tile.y))return;
-}
-
-function handlePointerUp(sx,sy){
-  const hit=hitTestUI(sx,sy);
-  if(hit)return;
-  const tile=screenToTile(sx,sy);
-  if(tile.x<0||tile.y<0||tile.x>=MAP_SIZE||tile.y>=MAP_SIZE)return;
-  if(buildMode==='delete'){
-    toggleDeleteSel(tile.x,tile.y);
-    return;
-  }
+  lastTap=now;
+  // UI hit tests first
+  if(hitUI(sx,sy))return;
   if(buildMode==='place'&&selectedBlock){
-    if(!canPlace(tile.x,tile.y,selectedBlock))return;
-    ghosts.push({x:tile.x,y:tile.y,type:selectedBlock,dir:selectedDir});
+    const tile=getTileFromScreen(sx,sy);
+    if(canPlace(tile.x,tile.y,selectedBlock)){
+      ghosts.push({x:tile.x,y:tile.y,type:selectedBlock,dir:selectedDir});
+    }
+  }else if(buildMode==='delete'){
+    const tile=getTileFromScreen(sx,sy);
+    toggleDeleteSel(tile.x,tile.y);
+  }else{
+    // try remove ghost
+    if(removeGhostAt(sx,sy))return;
+  }
+  pointers[type]={x:sx,y:sy,ox:sx,oy:sy,moved:false};
+}
+function handlePointerMove(sx,sy){
+  for(const k in pointers){
+    const p=pointers[k];
+    if(!p)continue;
+    const dx=sx-p.x,dy=sy-p.y;
+    if(Math.abs(dx)>4||Math.abs(dy)>4)p.moved=true;
+    if(p.moved){
+      camera.targetX-=dx;camera.targetY-=dy;
+      p.x=sx;p.y=sy;
+    }
   }
 }
-
-function tryRemoveGhost(tx,ty){
+function handlePointerUp(sx,sy,type){
+  const p=pointers[type];delete pointers[type];
+  if(!p||p.moved)return;
+  // single click actions already handled on down for place/delete
+}
+function getTileFromScreen(sx,sy){return{x:Math.floor((sx+camera.x)/TILE),y:Math.floor((sy+camera.y)/TILE)}}
+function removeGhostAt(sx,sy){
+  const tile=getTileFromScreen(sx,sy);
   for(let i=ghosts.length-1;i>=0;i--){
     const g=ghosts[i];const s=BUILDING_DEFS[g.type]?.size||1;
-    if(tx>=g.x&&tx<g.x+s&&ty>=g.y&&ty<g.y+s){ghosts.splice(i,1);return true}
+    if(tile.x>=g.x&&tile.x<g.x+s&&tile.y>=g.y&&tile.y<g.y+s){ghosts.splice(i,1);return true}
   }
   return false;
 }
-
-function toggleDeleteSel(tx,ty){
-  const key=getMainBuildingKey(tx,ty);
-  if(!key)return;
-  if(deleteSel.has(key))deleteSel.delete(key);
-  else deleteSel.add(key);
-}
-
-function getMainBuildingKey(tx,ty){
-  const b=buildMap[ty]?.[tx];
-  if(!b)return null;
-  if(b.type==='part')return b.parentX+','+b.parentY;
-  return tx+','+ty;
-}
-
-function hasPending(){return ghosts.length>0||deleteSel.size>0}
-
-function hitTestUI(sx,sy){
-  const rect=canvas.getBoundingClientRect();
-  const x=(sx-rect.left)*(VIEW_W/rect.width);
-  const y=(sy-rect.top)*(VIEW_H/rect.height);
-  // mode button
-  if(x>VIEW_W/2-70&&x<VIEW_W/2+70&&y>8&&y<30)return {type:'mode'};
-  // confirm
-  if(hasPending()&&x>VIEW_W/2-110&&x<VIEW_W/2+110&&y>34&&y<52)return {type:'confirm'};
-  // build menu left
-  const menuW=180,menuH=VIEW_H-120,menuX=8,menuY=40;
-  if(x>=menuX&&x<=menuX+menuW&&y>=menuY&&y<=menuY+menuH){
-    // categories
-    const catH=28;
-    for(let i=0;i<CATEGORIES.length;i++){
-      if(y>=menuY+i*catH&&y<menuY+(i+1)*catH)return {type:'cat',cat:CATEGORIES[i]};
-    }
-    // blocks of current category (simplified: use selected)
-    const cat=CATEGORIES.find(c=>c.blocks.includes(selectedBlock))||CATEGORIES[0];
-    const startY=menuY+CATEGORIES.length*catH+4;
-    const blockH=32;
-    for(let i=0;i<cat.blocks.length;i++){
-      const by=startY+i*blockH-menuScroll;
-      if(y>=by&&y<by+blockH)return {type:'block',block:cat.blocks[i]};
-    }
-  }
-  return null;
-}
-
-// === BUILDING PLACEMENT ===
-function canPlace(x,y,type){
+function canPlace(tx,ty,type){
   const def=BUILDING_DEFS[type];if(!def)return false;
-  for(let dy=0;dy<def.size;dy++)for(let dx=0;dx<def.size;dx++){
-    const tx=x+dx,ty=y+dy;
-    if(tx<0||ty<0||tx>=MAP_SIZE||ty>=MAP_SIZE)return false;
-    if(map[ty][tx]===BLOCK.WALL||map[ty][tx]===BLOCK.CORE)return false;
-    if(buildMap[ty][tx])return false;
+  const s=def.size;
+  for(let dy=0;dy<s;dy++)for(let dx=0;dx<s;dx++){
+    const x=tx+dx,y=ty+dy;
+    if(x<=0||y<=0||x>=MAP_SIZE-1||y>=MAP_SIZE-1)return false;
+    if(map[y][x]===BLOCK.WALL||map[y][x]===BLOCK.CORE)return false;
+    if(buildMap[y][x])return false;
   }
   return true;
 }
-
-function placeBuilding(x,y,type,dir=0){
-  if(!canPlace(x,y,type))return;
+function placeBuilding(tx,ty,type,dir){
+  if(!canPlace(tx,ty,type))return false;
   const def=BUILDING_DEFS[type];
-  const b={type,dir,items:{},liquids:{},progress:0,power:0,timer:0};
+  const b={type,x:tx,y:ty,dir:dir??0,items:{},liquids:{},progress:0,power:0,timer:0};
   for(let dy=0;dy<def.size;dy++)for(let dx=0;dx<def.size;dx++){
-    if(dx===0&&dy===0)buildMap[y][x]=b;
-    else buildMap[y+dy][x+dx]={type:'part',parentX:x,parentY:y};
+    if(dx===0&&dy===0)buildMap[ty][tx]=b;
+    else buildMap[ty+dy][tx+dx]={type:'part',parentX:tx,parentY:ty};
+  }
+  return true;
+}
+function getMainBuildingKey(tx,ty){
+  const b=buildMap[ty]?.[tx];if(!b)return null;
+  if(b.type==='part')return b.parentX+','+b.parentY;
+  return tx+','+ty;
+}
+function toggleDeleteSel(tx,ty){
+  const key=getMainBuildingKey(tx,ty);if(!key)return;
+  if(deleteSel.has(key))deleteSel.delete(key);else deleteSel.add(key);
+}
+function hasPending(){return ghosts.length>0||deleteSel.size>0}
+
+// UI layout constants
+const BTN_W=52,BTN_H=44,GAP=6;
+function hitUI(sx,sy){
+  const menuBottom=VIEW_H-10,modeY=menuBottom-BTN_H,modeX=VIEW_W-14-BTN_W;
+  // mode toggle
+  if(sx>=modeX&&sx<=modeX+BTN_W&&sy>=modeY&&sy<=modeY+BTN_H){
+    if(buildMode==='place'){buildMode='delete';/* ghosts stay */}
+    else{buildMode='place';deleteSel.clear()}
+    return true;
+  }
+  // confirm button
+  const leftX=modeX-BTN_W-GAP;
+  if(hasPending()&&sx>=leftX&&sx<=leftX+BTN_W&&sy>=modeY&&sy<=modeY+BTN_H){
+    if(buildMode==='place'&&ghosts.length){
+      for(const g of ghosts)placeBuilding(g.x,g.y,g.type,g.dir);
+      ghosts=[];
+    }else if(buildMode==='delete'&&deleteSel.size){
+      for(const key of deleteSel){
+        const [px,py]=key.split(',').map(Number);
+        const b=buildMap[py]?.[px];if(!b||b.type==='part')continue;
+        const def=BUILDING_DEFS[b.type];if(!def)continue;
+        for(let dy=0;dy<def.size;dy++)for(let dx=0;dx<def.size;dx++)buildMap[py+dy][px+dx]=null;
+      }
+      deleteSel.clear();
+    }
+    return true;
+  }
+  // rotate
+  if(buildMode==='place'&&selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional){
+    if(sx>=leftX&&sx<=leftX+BTN_W&&sy>=modeY-BTN_H-GAP&&sy<=modeY-GAP){
+      selectedDir=(selectedDir+1)%4;
+      if(ghosts.length)ghosts[ghosts.length-1].dir=selectedDir;
+      return true;
+    }
+  }
+  // categories
+  for(let i=0;i<CATEGORIES.length;i++){
+    const col=i%3,row=Math.floor(i/3);
+    const bx=VIEW_W-14-(2-col)*(BTN_W+GAP);
+    const by=menuBottom-BTN_H*2-GAP*2-(1-row)*(BTN_H+GAP);
+    if(sx>=bx&&sx<=bx+BTN_W&&sy>=by&&sy<=by+BTN_H){
+      // select first of category or keep
+      const cat=CATEGORIES[i];
+      if(cat.blocks.length){selectedBlock=cat.blocks[0];buildMode='place';deleteSel.clear()}
+      return true;
+    }
+  }
+  // block list (left of categories)
+  const listW=BTN_W*3+GAP*2;
+  const listX=VIEW_W-14-2*(BTN_W+GAP)-10-listW;
+  // simplified: click in list area selects
+  return false;
+}
+
+// mining
+function tryMine(tx,ty){
+  if(tx<=0||ty<=0||tx>=MAP_SIZE-1||ty>=MAP_SIZE-1)return;
+  const ore=oreMap[ty][tx];
+  if(ore===ORE.NONE&&map[ty][tx]===BLOCK.FERTILE){
+    // sand from fertile
+    if(distToCore(tx,ty)<=CORE_RANGE){coreInventory.sand=(coreInventory.sand||0)+1;showCoreInv=true}
+    else if((shipCargo.type===null||shipCargo.type==='sand')&&shipCargo.amount<PLAYER_MAX){shipCargo.type='sand';shipCargo.amount++}
+    return;
+  }
+  if(ore===ORE.NONE||ore===ORE.TITANIUM||ore===ORE.THORIUM)return; // player cannot mine Ti/Th
+  const resId=ORE_TO_ID[ore];
+  if(distToCore(tx,ty)<=CORE_RANGE){coreInventory[resId]=(coreInventory[resId]||0)+1;showCoreInv=true}
+  else if((shipCargo.type===null||shipCargo.type===resId)&&shipCargo.amount<PLAYER_MAX){shipCargo.type=resId;shipCargo.amount++}
+}
+function distToCore(tx,ty){return Math.max(Math.abs(tx-core.x),Math.abs(ty-core.y))}
+
+// drop cargo
+function tryDropCargo(){
+  if(shipCargo.amount<=0)return;
+  const tile=getTileFromScreen(VIEW_W/2,VIEW_H/2); // near ship roughly
+  // simplified: drop near ship position
+  const sx=Math.floor(ship.x),sy=Math.floor(ship.y);
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+    const b=buildMap[sy+dy]?.[sx+dx];
+    if(b&&b.type!=='part'&&BUILDING_DEFS[b.type]){
+      // try put on conveyor or into core range
+      if(distToCore(sx+dx,sy+dy)<=CORE_RANGE){
+        coreInventory[shipCargo.type]=(coreInventory[shipCargo.type]||0)+shipCargo.amount;
+        shipCargo.type=null;shipCargo.amount=0;showCoreInv=true;return;
+      }
+    }
   }
 }
 
-function removeBuilding(x,y){
-  const b=buildMap[y]?.[x];
-  if(!b)return;
-  let px=x,py=y;
-  if(b.type==='part'){px=b.parentX;py=b.parentY}
-  const def=BUILDING_DEFS[buildMap[py][px].type];
-  if(!def)return;
-  for(let dy=0;dy<def.size;dy++)for(let dx=0;dx<def.size;dx++){
-    buildMap[py+dy][px+dx]=null;
-  }
-}
-
-// === SIMULATION HELPERS ===
+// === SIMULATION helpers ===
 function countCoverage(x,y,size,pred){
   let n=0,tot=size*size;
-  for(let dy=0;dy<size;dy++)for(let dx=0;dx<size;dx++){
-    if(pred(x+dx,y+dy))n++;
-  }
+  for(let dy=0;dy<size;dy++)for(let dx=0;dx<size;dx++)if(pred(x+dx,y+dy))n++;
   return {n,ratio:n/tot,tot};
 }
-
 function addItem(b,id,amt){
   if(!b.items)b.items={};
-  const def=BUILDING_DEFS[b.type];
+  const def=BUILDING_DEFS[b.type];const cap=def?.itemCap||10;
   const cur=Object.values(b.items).reduce((a,v)=>a+v,0);
-  const space=(def.itemCap||10)-cur;
-  const add=Math.min(space,amt);
+  const add=Math.min(amt,cap-cur);
   if(add>0)b.items[id]=(b.items[id]||0)+add;
   return add;
 }
-
 function takeItem(b,id,amt){
-  if(!b.items||!b.items[id])return 0;
-  const t=Math.min(b.items[id],amt);
-  b.items[id]-=t;
-  if(b.items[id]<=0)delete b.items[id];
+  if(!b.items)return 0;
+  const have=b.items[id]||0;
+  const t=Math.min(have,amt);
+  if(t>0){b.items[id]-=t;if(b.items[id]<=0)delete b.items[id]}
   return t;
 }
-
 function addLiquid(b,id,amt){
   if(!b.liquids)b.liquids={};
-  const def=BUILDING_DEFS[b.type];
-  const cur=Object.values(b.liquids||{}).reduce((a,v)=>a+v,0);
-  const space=(def.liqCap||60)-cur;
-  const add=Math.min(space,amt);
-  if(add>0){if(!b.liquids)b.liquids={};b.liquids[id]=(b.liquids[id]||0)+add}
+  const def=BUILDING_DEFS[b.type];const cap=def?.liqCap||60;
+  const cur=Object.values(b.liquids).reduce((a,v)=>a+v,0);
+  const add=Math.min(amt,cap-cur);
+  if(add>0)b.liquids[id]=(b.liquids[id]||0)+add;
   return add;
 }
-
 function takeLiquid(b,id,amt){
   if(!b.liquids)return 0;
   const have=b.liquids[id]||0;
@@ -515,216 +431,131 @@ function takeLiquid(b,id,amt){
   return t;
 }
 
-// === UPDATE ===
 function updateBuildings(dt){
   globalPowerGen=0;globalPowerUse=0;globalPowerCap=0;
-  let powerNeed=0,powerHave=0;
-  // first pass: collect generation and capacity
+  dayNight=0.5+0.5*Math.sin(performance.now()/60000); // slow day/night
+
   for(let y=0;y<MAP_SIZE;y++)for(let x=0;x<MAP_SIZE;x++){
     const b=buildMap[y][x];if(!b||b.type==='part')continue;
     const def=BUILDING_DEFS[b.type];if(!def)continue;
+
+    // power tracking
     if(def.powerCap)globalPowerCap+=def.powerCap;
-    // generation
-    if(b.type===BTYPE.THERMAL_GEN){
-      const hot=countCoverage(x,y,def.size,(tx,ty)=>map[ty][tx]===BLOCK.HOT);
-      if(hot.n>0){const gen=108*hot.ratio;globalPowerGen+=gen;b._gen=gen}
-    }else if(b.type===BTYPE.SOLAR||b.type===BTYPE.LARGE_SOLAR){
-      const gen=def.powerGen*Math.max(0,Math.sin(dayNight*Math.PI));
-      globalPowerGen+=gen;b._gen=gen;
-    }else if(def.powerGen&&!def.fuels&&!def.recipe){
-      // static or simple
+    if(def.powerGen){
+      let gen=def.powerGen;
+      if(b.type===BTYPE.SOLAR||b.type===BTYPE.LARGE_SOLAR)gen*=Math.max(0.05,dayNight);
+      if(b.type===BTYPE.THERMAL_GEN){
+        const cov=countCoverage(x,y,def.size,(tx,ty)=>map[ty]?.[tx]===BLOCK.HOT);
+        gen*=cov.ratio||0;
+      }
+      globalPowerGen+=gen;
     }
-  }
-  // second pass: consume and produce
-  for(let y=0;y<MAP_SIZE;y++)for(let x=0;x<MAP_SIZE;x++){
-    const b=buildMap[y][x];if(!b||b.type==='part')continue;
-    const def=BUILDING_DEFS[b.type];if(!def)continue;
+    if(def.powerUse)globalPowerUse+=def.powerUse;
+
     // drills
     if(def.mine){
       let rateMul=1;
       if(def.boostWater&&(b.liquids?.water||0)>=def.boostWater*dt){
         takeLiquid(b,'water',def.boostWater*dt);
-        rateMul=def.boostMul||2.56;
-      }
-      if(def.powerUse){
-        // simplified power check
-        globalPowerUse+=def.powerUse;
+        rateMul=def.boostMul||1;
       }
       for(const [res,baseRate] of Object.entries(def.mine)){
-        const oreId=Object.keys(ORE_TO_ID).find(k=>ORE_TO_ID[k]===res);
-        if(oreId===undefined)continue;
-        const cov=countCoverage(x,y,def.size,(tx,ty)=>oreMap[ty][tx]==+oreId);
-        if(cov.n===0)continue;
-        const rate=baseRate*cov.ratio*rateMul;
-        const amt=rate*dt;
-        if(amt>0)addItem(b,res,amt);
+        let tiles=0;
+        for(let dy=0;dy<def.size;dy++)for(let dx=0;dx<def.size;dx++){
+          const tx=x+dx,ty=y+dy;
+          if(res==='sand'){
+            if(map[ty]?.[tx]===BLOCK.FERTILE||oreMap[ty]?.[tx]===ORE.NONE&&map[ty]?.[tx]===BLOCK.DIRT)tiles++;
+          }else{
+            const oid=Object.entries(ORE_TO_ID).find(([,v])=>v===res)?.[0];
+            if(oid&&oreMap[ty]?.[tx]===+oid)tiles++;
+          }
+        }
+        if(tiles>0){
+          const rate=baseRate*(tiles/(def.size*def.size))*rateMul;
+          addItem(b,res,rate*dt);
+        }
       }
     }
+
     // pumps
     if(def.pumpRate){
-      if(def.powerUse)globalPowerUse+=def.powerUse;
-      const waterCov=countCoverage(x,y,def.size,(tx,ty)=>map[ty][tx]===BLOCK.WATER);
-      if(waterCov.n>0){
-        const rate=def.pumpRate*waterCov.ratio;
+      let waterTiles=0;
+      for(let dy=0;dy<def.size;dy++)for(let dx=0;dx<def.size;dx++)if(map[y+dy]?.[x+dx]===BLOCK.WATER)waterTiles++;
+      if(waterTiles>0){
+        const rate=def.pumpRate*(waterTiles/(def.size*def.size));
         addLiquid(b,'water',rate*dt);
       }
     }
+
     // water extractor
     if(b.type===BTYPE.WATER_EXTRACTOR){
-      globalPowerUse+=90;
-      const fert=countCoverage(x,y,def.size,(tx,ty)=>map[ty][tx]===BLOCK.FERTILE);
-      if(fert.n>0)addLiquid(b,'water',6.6*fert.ratio*dt);
+      let fert=0;
+      for(let dy=0;dy<def.size;dy++)for(let dx=0;dx<def.size;dx++)if(map[y+dy]?.[x+dx]===BLOCK.FERTILE)fert++;
+      if(fert>0)addLiquid(b,'water',6.6*(fert/(def.size*def.size))*dt);
     }
+
     // oil extractor
     if(b.type===BTYPE.OIL_EXTRACTOR){
-      globalPowerUse+=180;
-      const fert=countCoverage(x,y,def.size,(tx,ty)=>map[ty][tx]===BLOCK.FERTILE);
-      if(fert.n>0&&(b.items.sand||0)>=1&&(b.liquids?.water||0)>=9*dt){
-        takeItem(b,'sand',1*dt);
+      let fert=0;
+      for(let dy=0;dy<def.size;dy++)for(let dx=0;dx<def.size;dx++)if(map[y+dy]?.[x+dx]===BLOCK.FERTILE)fert++;
+      if(fert>0&&(b.items.sand||0)>=1&&(b.liquids?.water||0)>=9*dt){
+        takeItem(b,'sand',1*dt); // approx
         takeLiquid(b,'water',9*dt);
-        addLiquid(b,'oil',15*dt);
+        addLiquid(b,'oil',15*(fert/(def.size*def.size))*dt);
       }
     }
+
     // cultivator
     if(b.type===BTYPE.CULTIVATOR){
-      globalPowerUse+=80;
       if((b.liquids?.water||0)>=18*dt){
         takeLiquid(b,'water',18*dt);
         b.progress=(b.progress||0)+dt;
-        if(b.progress>=1.666){b.progress-=1.666;addItem(b,'spore',1)}
+        if(b.progress>=1.666){b.progress=0;addItem(b,'spore',1)}
       }
     }
-    // combustion gen
-    if(b.type===BTYPE.COMBUSTION){
-      let fuelId=null,eff=0;
-      for(const [f,e] of Object.entries(def.fuels||{})){
-        if((b.items[f]||0)>0){fuelId=f;eff=e;break}
-      }
-      if(fuelId){
-        takeItem(b,fuelId,0.1*dt); // approximate burn
-        globalPowerGen+=60*eff;
-      }
-    }
-    // steam gen
-    if(b.type===BTYPE.STEAM_GEN){
-      let fuelId=null;
-      for(const f of ['coal','spore','pyratite'])if((b.items[f]||0)>0){fuelId=f;break}
-      if(fuelId&&(b.liquids?.water||0)>=6*dt){
-        takeLiquid(b,'water',6*dt);
-        takeItem(b,fuelId,0.1*dt);
-        globalPowerGen+=330;
-      }
-    }
-    // diff gen
-    if(b.type===BTYPE.DIFF_GEN){
-      if((b.items.pyratite||0)>=1&&(b.liquids?.cryo||0)>=6*dt){
-        takeItem(b,'pyratite',1*dt);
-        takeLiquid(b,'cryo',6*dt);
-        globalPowerGen+=1080;
-      }
-    }
-    // RTG
-    if(b.type===BTYPE.RTG){
-      if((b.items.thorium||0)>0){takeItem(b,'thorium',0.05*dt);globalPowerGen+=270}
-      else if((b.items.phase||0)>0){takeItem(b,'phase',0.05*dt);globalPowerGen+=270*0.6*15}
-    }
-    // thorium reactor
-    if(b.type===BTYPE.THORIUM_REACTOR){
-      const cryo=b.liquids?.cryo||0;
-      if((b.items.thorium||0)>=1&&cryo>=2.4*dt){
-        takeItem(b,'thorium',1*dt);
-        takeLiquid(b,'cryo',2.4*dt);
-        globalPowerGen+=900;
-        b.timer=0;
-      }else if((b.items.thorium||0)>=30&&cryo<=0){
-        b.timer=(b.timer||0)+dt;
-        if(b.timer>3.54){
-          // explode
-          removeBuilding(x,y);
-          // damage area simplified
-        }
-      }
-    }
-    // impact reactor
-    if(b.type===BTYPE.IMPACT_REACTOR){
-      globalPowerUse+=1500;
-      if((b.liquids?.cryo||0)>=15*dt&&(b.items.blast||0)>=1){
-        takeLiquid(b,'cryo',15*dt);
-        takeItem(b,'blast',1*dt);
-        globalPowerGen+=7800;
-      }
-    }
+
     // recipes
     if(def.recipe){
-      if(def.powerUse)globalPowerUse+=def.powerUse;
+      const r=def.recipe;
       let can=true;
-      for(const [id,need] of Object.entries(def.recipe.in)){
-        const isLiq=RESOURCES.find(r=>r.id===id)?.liquid;
+      for(const [id,need] of Object.entries(r.in)){
+        const isLiq=RESOURCES.find(rr=>rr.id===id)?.liquid;
         if(isLiq){if((b.liquids?.[id]||0)<need*dt*0.5&&(b.liquids?.[id]||0)<need)can=false}
-        else if((b.items[id]||0)<need)can=false;
+        else{if((b.items?.[id]||0)<need)can=false}
       }
       if(can){
         b.progress=(b.progress||0)+dt;
-        if(b.progress>=def.recipe.time){
-          b.progress-=def.recipe.time;
-          for(const [id,need] of Object.entries(def.recipe.in)){
-            const isLiq=RESOURCES.find(r=>r.id===id)?.liquid;
-            if(isLiq)takeLiquid(b,id,need);
-            else takeItem(b,id,need);
+        if(b.progress>=r.time){
+          b.progress=0;
+          for(const [id,need] of Object.entries(r.in)){
+            const isLiq=RESOURCES.find(rr=>rr.id===id)?.liquid;
+            if(isLiq)takeLiquid(b,id,need);else takeItem(b,id,need);
           }
-          for(const [id,out] of Object.entries(def.recipe.out)){
-            const isLiq=RESOURCES.find(r=>r.id===id)?.liquid;
-            if(isLiq)addLiquid(b,id,out);
-            else addItem(b,id,out);
+          for(const [id,amt] of Object.entries(r.out)){
+            const isLiq=RESOURCES.find(rr=>rr.id===id)?.liquid;
+            if(isLiq)addLiquid(b,id,amt);else addItem(b,id,amt);
           }
         }
       }
     }
-    // separator simplified
-    if(b.type===BTYPE.SEPARATOR){
-      globalPowerUse+=66;
-      if((b.liquids?.slag||0)>=4*dt){
-        takeLiquid(b,'slag',4*dt);
-        const roll=Math.random();
-        if(roll<0.41)addItem(b,Math.random()<0.5?'copper':'lead',1);
-        else if(roll<0.57)addItem(b,Math.random()<0.5?'graphite':'titanium',1);
-      }
-    }
   }
-  // simple power balance
   globalPower=Math.min(globalPowerCap,Math.max(0,globalPower+(globalPowerGen-globalPowerUse)*dt));
 }
 
-function updateItems(dt){
-  // simplified item movement on conveyors
-  for(let i=items.length-1;i>=0;i--){
-    const it=items[i];
-    const tx=Math.floor(it.x),ty=Math.floor(it.y);
-    const b=buildMap[ty]?.[tx];
-    if(b&&b.type!=='part'){
-      const def=BUILDING_DEFS[b.type];
-      if(def&&def.speed){
-        const v=DIR_VEC[b.dir??0];
-        it.x+=v.x*def.speed*60*dt;
-        it.y+=v.y*def.speed*60*dt;
-        // check if left the tile
-        if(Math.floor(it.x)!==tx||Math.floor(it.y)!==ty){
-          // try enter next
-        }
-      }
-    }
-  }
-}
+function update(dt){
+  // ship physics simple
+  // camera home
+  const cx=(camera.x+VIEW_W/2)/TILE,cy=(camera.y+VIEW_H/2)/TILE;
+  const dx=ship.x-cx,dy=ship.y-cy;
+  camera.targetX+=dx*TILE*0.08;
+  camera.targetY+=dy*TILE*0.08;
+  camera.x+=(camera.targetX-camera.x)*0.15;
+  camera.y+=(camera.targetY-camera.y)*0.15;
+  const maxX=MAP_SIZE*TILE-VIEW_W,maxY=MAP_SIZE*TILE-VIEW_H;
+  camera.x=Math.max(0,Math.min(maxX,camera.x));
+  camera.y=Math.max(0,Math.min(maxY,camera.y));
 
-function updateShip(dt){
-  // simple velocity from pointer drag or keys (simplified)
-  ship.x+=ship.vx*dt;ship.y+=ship.vy*dt;
-  ship.vx*=0.92;ship.vy*=0.92;
-  // homing camera
-  const targetX=ship.x*TILE-VIEW_W/2,targetY=ship.y*TILE-VIEW_H/2;
-  camera.x+=(targetX-camera.x)*0.08;
-  camera.y+=(targetY-camera.y)*0.08;
-  // mine double click simplified via cargo
+  updateBuildings(dt);
 }
 
 // === DRAW ===
@@ -733,42 +564,62 @@ function drawIcon(x,y,size,type,color){
   if(type==='liquid'){ctx.beginPath();ctx.arc(x,y,size/2,0,Math.PI*2);ctx.fill()}
   else{ctx.fillRect(x-size/2,y-size/2,size,size)}
 }
-
 function drawDirArrow(cx,cy,d,alpha=1){
   ctx.save();ctx.translate(cx,cy);ctx.rotate(d*Math.PI/2);ctx.globalAlpha=alpha;
   ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(6,0);ctx.lineTo(-4,-5);ctx.lineTo(-4,5);ctx.closePath();ctx.fill();
   ctx.restore();
 }
-
-function drawBuildMenu(){
-  const menuW=180,menuX=8,menuY=40,catH=28;
-  ctx.fillStyle='rgba(10,12,20,0.92)';ctx.fillRect(menuX,menuY,menuW,VIEW_H-120);
-  ctx.strokeStyle='#446';ctx.strokeRect(menuX,menuY,menuW,VIEW_H-120);
-  CATEGORIES.forEach((cat,i)=>{
-    const selected=cat.blocks.includes(selectedBlock);
-    ctx.fillStyle=selected?'#2a4060':'#1a2030';
-    ctx.fillRect(menuX+2,menuY+i*catH+2,menuW-4,catH-2);
-    ctx.fillStyle=selected?'#8cf':'#aaa';ctx.font='12px system-ui';ctx.fillText(cat.name,menuX+8,menuY+i*catH+18);
-  });
-  const cat=CATEGORIES.find(c=>c.blocks.includes(selectedBlock))||CATEGORIES[0];
-  const startY=menuY+CATEGORIES.length*catH+8;
-  cat.blocks.forEach((bt,i)=>{
-    const def=BUILDING_DEFS[bt];if(!def)return;
-    const by=startY+i*32;
-    if(by>VIEW_H-100)return;
-    const sel=selectedBlock===bt;
-    ctx.fillStyle=sel?'#3a5080':'#1a2535';
-    ctx.fillRect(menuX+4,by,menuW-8,30);
-    ctx.fillStyle=def.color;ctx.fillRect(menuX+8,by+6,18,18);
-    ctx.fillStyle=sel?'#fff':'#ccc';ctx.font='11px system-ui';ctx.fillText(def.name,menuX+32,by+18);
+function drawLiquidCounters(){
+  const liquids=['water','slag','oil','cryo'];
+  const names={water:'Вода',slag:'Шлак',oil:'Нефть',cryo:'Крио'};
+  const colors={water:'#4da6ff',slag:'#ff6a00',oil:'#2a1a0a',cryo:'#6ef0ff'};
+  ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(8,40,148,liquids.length*18+8);
+  liquids.forEach((id,i)=>{
+    const v=Math.floor(coreInventory[id]||0);
+    ctx.fillStyle=colors[id];ctx.fillRect(12,46+i*18,10,10);
+    ctx.fillStyle='#ccc';ctx.font='11px system-ui';ctx.textAlign='left';
+    ctx.fillText(names[id]+': '+v,26,55+i*18);
   });
 }
-
+function drawBuildMenu(){
+  const menuBottom=VIEW_H-10,modeY=menuBottom-BTN_H,modeX=VIEW_W-14-BTN_W;
+  // mode
+  ctx.fillStyle=buildMode==='delete'?'#a03030':'#305030';
+  ctx.fillRect(modeX,modeY,BTN_W,BTN_H);
+  ctx.strokeStyle='#fff';ctx.strokeRect(modeX,modeY,BTN_W,BTN_H);
+  ctx.fillStyle='#fff';ctx.font='11px system-ui';ctx.textAlign='center';
+  ctx.fillText(buildMode==='delete'?'СНОС':'СТРОЙ',modeX+BTN_W/2,modeY+28);
+  // confirm
+  const leftX=modeX-BTN_W-GAP;
+  if(hasPending()){
+    ctx.fillStyle=buildMode==='delete'?'#c04040':'#40a040';
+    ctx.fillRect(leftX,modeY,BTN_W,BTN_H);
+    ctx.strokeStyle='#fff';ctx.strokeRect(leftX,modeY,BTN_W,BTN_H);
+    ctx.fillStyle='#fff';ctx.font='22px system-ui';ctx.fillText('✓',leftX+BTN_W/2,modeY+28);
+  }
+  // rotate
+  if(buildMode==='place'&&selectedBlock&&BUILDING_DEFS[selectedBlock]?.directional){
+    ctx.fillStyle='#404060';ctx.fillRect(leftX,modeY-BTN_H-GAP,BTN_W,BTN_H);
+    ctx.strokeStyle='#aaa';ctx.strokeRect(leftX,modeY-BTN_H-GAP,BTN_W,BTN_H);
+    ctx.fillStyle='#fff';ctx.font='22px system-ui';ctx.fillText(DIR_ARROW[selectedDir],leftX+BTN_W/2,modeY-BTN_H-GAP+28);
+  }
+  // categories
+  for(let i=0;i<CATEGORIES.length;i++){
+    const col=i%3,row=Math.floor(i/3);
+    const bx=VIEW_W-14-(2-col)*(BTN_W+GAP);
+    const by=menuBottom-BTN_H*2-GAP*2-(1-row)*(BTN_H+GAP);
+    const cat=CATEGORIES[i];
+    const active=selectedBlock!=null&&cat.blocks.includes(selectedBlock);
+    ctx.fillStyle=active?'#4a3a20':'#2a2a3a';
+    ctx.fillRect(bx,by,BTN_W,BTN_H);
+    ctx.strokeStyle=active?'#ffcc66':'#555';ctx.strokeRect(bx,by,BTN_W,BTN_H);
+    ctx.fillStyle=active?'#ffcc66':'#aaa';ctx.font='9px system-ui';ctx.textAlign='center';ctx.fillText(cat.name.slice(0,6),bx+BTN_W/2,by+24);
+  }
+}
 function drawBlockInfo(){
-  if(!showBlockInfo||!selectedBlock)return;
-  const def=BUILDING_DEFS[selectedBlock];if(!def)return;
+  if(!showBlockInfo||!infoBlock)return;
+  const def=BUILDING_DEFS[infoBlock];if(!def)return;
   const lines=[def.name,def.desc||''];
-  if(def.size)lines.push(`Размер: ${def.size}x${def.size}`);
   if(def.itemCap)lines.push(`Предметы: ${def.itemCap}`);
   if(def.liqCap)lines.push(`Жидкости: ${def.liqCap}`);
   if(def.powerUse)lines.push(`Энергия: -${def.powerUse}/с`);
@@ -778,8 +629,7 @@ function drawBlockInfo(){
   if(def.recipe)lines.push('Рецепт: '+JSON.stringify(def.recipe.in)+' → '+JSON.stringify(def.recipe.out)+' /'+def.recipe.time+'с');
   if(def.pumpRate)lines.push(`Насос: ${def.pumpRate}/с`);
   if(def.boostWater)lines.push(`Буст водой: x${def.boostMul} (${def.boostWater}/с)`);
-  const w=Math.min(320,VIEW_W-20),pad=8;
-  const h=lines.length*16+pad*2;
+  const pad=8,w=Math.min(280,VIEW_W-20),h=lines.length*16+pad*2;
   const px=12,py=50;
   ctx.fillStyle='rgba(15,15,30,.95)';ctx.fillRect(px,py,w,h);
   ctx.strokeStyle='#6ab0ff';ctx.strokeRect(px,py,w,h);
@@ -789,7 +639,6 @@ function drawBlockInfo(){
     ctx.fillText(ln.slice(0,50),px+pad,py+pad+12+i*16);
   });
 }
-
 function drawCoreInv(){
   if(!showCoreInv)return;
   const panelW=Math.min(220,VIEW_W*.42),rowH=22,pad=8,titleH=20;
@@ -805,30 +654,6 @@ function drawCoreInv(){
   if(!coreItems.length){ctx.fillStyle='#555';ctx.font='10px system-ui';ctx.fillText('пусто',px+pad,py+titleH+12)}
   else coreItems.forEach((res,i)=>{const ry=py+titleH+pad+i*rowH;drawIcon(px+pad+8,ry+rowH/2-1,11,res.icon,res.color);ctx.fillStyle='#ccc';ctx.font='10px system-ui';ctx.textAlign='left';ctx.fillText(res.name,px+pad+20,ry+13);ctx.fillStyle=res.liquid?'#6ef':'#8cf';ctx.textAlign='right';ctx.fillText(String(Math.floor(coreInventory[res.id])),px+panelW-pad,ry+13);ctx.textAlign='left'});
 }
-
-function drawLiquidCounters(){
-  // Always-visible counters for key liquids (slag, oil, cryo) + water
-  const liqs = ['water','slag','oil','cryo'];
-  const labels = {water:'Вода',slag:'Шлак',oil:'Нефть',cryo:'Крио'};
-  const colors = {water:'#4da6ff',slag:'#ff6a00',oil:'#8b5a2b',cryo:'#6ef0ff'};
-  const startX = 8, startY = 8, h = 18, gap = 4;
-  let x = startX;
-  ctx.font = '11px system-ui';
-  for(const id of liqs){
-    const val = Math.floor(coreInventory[id] || 0);
-    const label = labels[id] + ': ' + val;
-    const w = ctx.measureText(label).width + 16;
-    ctx.fillStyle = 'rgba(10,12,20,0.85)';
-    ctx.fillRect(x, startY, w, h);
-    ctx.strokeStyle = colors[id];
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x + 0.5, startY + 0.5, w - 1, h - 1);
-    ctx.fillStyle = colors[id];
-    ctx.fillText(label, x + 8, startY + 13);
-    x += w + gap;
-  }
-}
-
 function draw(){
   ctx.clearRect(0,0,VIEW_W,VIEW_H);
   const sTX=Math.max(0,Math.floor(camera.x/TILE)-1),sTY=Math.max(0,Math.floor(camera.y/TILE)-1);
@@ -862,7 +687,6 @@ function draw(){
           ctx.strokeStyle='#ff2222';ctx.lineWidth=3;ctx.strokeRect(sx+.5,sy+.5,TILE*def.size-1,TILE*def.size-1);
           ctx.fillStyle='rgba(255,40,40,.25)';ctx.fillRect(sx+1,sy+1,TILE*def.size-2,TILE*def.size-2);
         }
-        // item indicator
         const itemCount=Object.values(b.items||{}).reduce((a,v)=>a+v,0);
         if(itemCount>0){ctx.fillStyle='#fff';ctx.font='9px system-ui';ctx.fillText(String(itemCount),sx+2,sy+10)}
       }
@@ -880,11 +704,7 @@ function draw(){
     if(def.directional)drawDirArrow(sx+TILE*def.size/2,sy+TILE*def.size/2,g.dir,.9);
   }
 
-  for(const it of items){
-    const res=RESOURCES.find(r=>r.id===it.type);if(!res)continue;
-    ctx.fillStyle=res.color;ctx.beginPath();ctx.arc(it.x*TILE-camera.x,it.y*TILE-camera.y,4,0,Math.PI*2);ctx.fill();
-  }
-
+  // ship
   const ssx=ship.x*TILE-camera.x,ssy=ship.y*TILE-camera.y;
   ctx.save();ctx.translate(ssx,ssy);ctx.rotate(ship.angle);
   ctx.fillStyle='#6a6a6a';ctx.beginPath();ctx.moveTo(ship.size,0);ctx.lineTo(-ship.size*.7,-ship.size*.55);ctx.lineTo(-ship.size*.4,0);ctx.lineTo(-ship.size*.7,ship.size*.55);ctx.closePath();ctx.fill();
@@ -895,7 +715,7 @@ function draw(){
 
   if(shipCargo.amount>0&&shipCargo.type){
     const res=RESOURCES.find(r=>r.id===shipCargo.type);
-    if(res){ctx.fillStyle=res.color;ctx.font='11px system-ui';ctx.fillText(shipCargo.amount+' '+res.name,ssx+12,ssy-8)}
+    if(res){ctx.fillStyle=res.color;ctx.beginPath();ctx.arc(ssx,ssy-18,6,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText(String(shipCargo.amount),ssx,ssy-15)}
   }
 
   // power bar
@@ -920,16 +740,20 @@ function draw(){
   ctx.textAlign='left';
 }
 
-function loop(t){
-  const dt=Math.min(0.05,(t-lastTime)/1000);lastTime=t;
-  dayNight=(dayNight+dt/120)%1; // 2 min day cycle
-  updateShip(dt);
-  updateBuildings(dt);
-  updateItems(dt);
-  draw();
-  requestAnimationFrame(loop);
-}
+// pointer events
+canvas.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType!=='touch')return;e.preventDefault();handlePointerDown(e.clientX,e.clientY,e.pointerType==='touch'?'touch':'mouse')});
+canvas.addEventListener('pointermove',e=>handlePointerMove(e.clientX,e.clientY));
+canvas.addEventListener('pointerup',e=>handlePointerUp(e.clientX,e.clientY,e.pointerType==='touch'?'touch':'mouse'));
+canvas.addEventListener('pointercancel',e=>delete pointers[e.pointerType==='touch'?'touch':'mouse']);
+// keyboard
+window.addEventListener('keydown',e=>{
+  if(e.code==='KeyR'){selectedDir=(selectedDir+1)%4;if(ghosts.length)ghosts[ghosts.length-1].dir=selectedDir}
+  if(e.code==='Escape'){ghosts=[];deleteSel.clear();showBlockInfo=false}
+  if(e.code==='KeyQ'){showBlockInfo=!showBlockInfo;if(selectedBlock)infoBlock=selectedBlock}
+});
 
+let lastTime=performance.now();
+function loop(now){const dt=Math.min(.05,(now-lastTime)/1000);lastTime=now;update(dt);draw();requestAnimationFrame(loop)}
 generateMap();spawnShip();requestAnimationFrame(loop);
 </script>
 </body>
