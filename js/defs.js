@@ -1,4 +1,4 @@
-const MAP_SIZE=160,TILE=16,CORE_RANGE=20,PLAYER_MAX=30;
+const MAP_SIZE=160,TILE=40,CORE_RANGE=20,PLAYER_MAX=30;
 const BLOCK={WALL:0,DIRT:1,FERTILE:2,WATER:3,CORE:4,HOT:5};
 const COLORS={[BLOCK.WALL]:'#555',[BLOCK.DIRT]:'#8B5A2B',[BLOCK.FERTILE]:'#5C4033',[BLOCK.WATER]:'#1E90FF',[BLOCK.CORE]:'#2a2a3a',[BLOCK.HOT]:'#c44a1a'};
 const ORE={NONE:0,COPPER:1,LEAD:2,COAL:3,TITANIUM:4,THORIUM:5,METALOM:6};
@@ -55,14 +55,14 @@ const BUILDING_DEFS={
   [BTYPE.BRIDGE]:def({name:'Мост',size:1,color:'#a08040',range:3,directional:true,category:'transport',desc:'Мост 0-3'}),
   [BTYPE.PHASE_BRIDGE]:def({name:'Фаз. мост',size:1,color:'#c77dff',range:15,directional:true,category:'transport',desc:'Мост до 15'}),
   [BTYPE.ROUTER]:def({name:'Маршрутизатор',size:1,color:'#cc8844',category:'transport',desc:'Равномерно раздаёт'}),
-  [BTYPE.SORTER]:def({name:'Сортировщик',size:1,color:'#44aa88',directional:true,category:'transport',desc:'Выбранный вперёд'}),
-  [BTYPE.INV_SORTER]:def({name:'Инв. сортир.',size:1,color:'#aa4488',directional:true,category:'transport',desc:'Выбранный вбок'}),
-  [BTYPE.GATE]:def({name:'Затвор',size:1,color:'#888844',directional:true,category:'transport',desc:'Overflow'}),
-  [BTYPE.INV_GATE]:def({name:'Инв. затвор',size:1,color:'#884488',directional:true,category:'transport',desc:'Inverted overflow'}),
+  [BTYPE.SORTER]:def({name:'Сортировщик',size:1,color:'#44aa88',directional:false,category:'transport',desc:'Выбранный вперёд'}),
+  [BTYPE.INV_SORTER]:def({name:'Инв. сортир.',size:1,color:'#aa4488',directional:false,category:'transport',desc:'Выбранный вбок'}),
+  [BTYPE.GATE]:def({name:'Затвор',size:1,color:'#888844',directional:false,category:'transport',desc:'Overflow'}),
+  [BTYPE.INV_GATE]:def({name:'Инв. затвор',size:1,color:'#884488',directional:false,category:'transport',desc:'Inverted overflow'}),
   [BTYPE.DISTRIBUTOR]:def({name:'Распределитель',size:2,color:'#cc8844',category:'transport',desc:'Маршрутизатор 2x2'}),
-  [BTYPE.UNLOADER]:def({name:'Разгрузчик',size:1,color:'#6ab0ff',directional:true,category:'transport',desc:'Выгрузка из блока/ядра'}),
-  [BTYPE.MECH_DRILL]:def({name:'Мех. бур',size:2,color:'#8a7050',itemCap:10,liqCap:30,category:'drill',mine:{sand:.4,copper:.36,lead:.36,coal:.34},boostWater:3,boostMul:2.56,desc:'2x2. Вода x2.56'}),
-  [BTYPE.PNEU_DRILL]:def({name:'Пневм. бур',size:2,color:'#6a8a9a',itemCap:10,liqCap:35,category:'drill',mine:{sand:.6,copper:.53,lead:.53,coal:.48,titanium:.43},boostWater:3,boostMul:2.56,desc:'Добывает титан'}),
+  [BTYPE.UNLOADER]:def({name:'Разгрузчик',size:1,color:'#6ab0ff',directional:false,category:'transport',desc:'Выгрузка из блока/ядра'}),
+  [BTYPE.MECH_DRILL]:def({name:'Мех. бур',size:2,color:'#8a7050',itemCap:10,liqCap:30,category:'drill',mine:{sand:.4,copper:.36,lead:.36,coal:.34},boostWater:3,boostMul:2.56,desc:'2x2. Без энергии. Вода x2.56'}),
+  [BTYPE.PNEU_DRILL]:def({name:'Пневм. бур',size:2,color:'#6a8a9a',itemCap:10,liqCap:35,category:'drill',mine:{sand:.6,copper:.53,lead:.53,coal:.48,titanium:.43},boostWater:3,boostMul:2.56,desc:'Без энергии. Добывает титан'}),
   [BTYPE.LASER_DRILL]:def({name:'Лазер. бур',size:3,color:'#c080ff',itemCap:10,liqCap:48,powerUse:66,category:'drill',mine:{sand:1.92,copper:1.63,lead:1.63,coal:1.42,titanium:1.25,thorium:1.12},boostWater:4.8,boostMul:2.56,desc:'3x3. 66 э/с'}),
   [BTYPE.AIRBLAST_DRILL]:def({name:'Воздуш. бур',size:4,color:'#90c0e0',itemCap:20,liqCap:60,powerUse:180,category:'drill',mine:{sand:3.42,copper:2.9,lead:2.9,coal:2.52,titanium:2.23,thorium:2.0},boostWater:6,boostMul:3.24,desc:'4x4. 180 э/с'}),
   [BTYPE.CONDUIT]:def({name:'Трубопровод',size:1,color:'#4a90d0',directional:true,category:'liquid',desc:'Труба'}),
