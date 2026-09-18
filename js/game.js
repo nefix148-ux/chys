@@ -135,16 +135,17 @@ function removeGhostAt(tx,ty){
   return false;
 }
 function hasPending(){return ghosts.length>0||deleteSel.size>0}
-const BTN_W=52,BTN_H=44,GAP=6;
+const BTN_W=44,BTN_H=36,GAP=4;
 function getMenuLayout(){
-  const menuBottom=VIEW_H-10,modeY=menuBottom-BTN_H,modeX=VIEW_W-14-BTN_W;
+  const menuBottom=VIEW_H-10,modeY=menuBottom-BTN_H,modeX=VIEW_W-10-BTN_W;
   const catStartY=menuBottom-BTN_H*2-GAP*2;
   return{menuBottom,modeY,modeX,catStartY};
 }
 function getBuildMenuHit(mx,my){
   const L=getMenuLayout();
   if(mx>=L.modeX&&mx<=L.modeX+BTN_W&&my>=L.modeY&&my<=L.modeY+BTN_H)return{type:'mode'};
-  const qY=L.catStartY-4*(BTN_H+GAP);
+  const maxRow=CATEGORIES.reduce((m,c)=>Math.max(m,c.row||0),0);
+  const qY=L.catStartY-(maxRow+1)*(BTN_H+GAP);
   if(mx>=L.modeX&&mx<=L.modeX+BTN_W&&my>=qY&&my<=qY+BTN_H)return{type:'info'};
   let leftX=L.modeX-BTN_W-GAP;
   if(hasPending()&&mx>=leftX&&mx<=leftX+BTN_W&&my>=L.modeY&&my<=L.modeY+BTN_H)return{type:'confirm'};
@@ -154,16 +155,16 @@ function getBuildMenuHit(mx,my){
   }
   for(const cat of CATEGORIES){
     const col=cat.side==='left'?0:1;
-    const bx=VIEW_W-14-(2-col)*(BTN_W+GAP);
+    const bx=VIEW_W-10-(2-col)*(BTN_W+GAP);
     const by=L.catStartY-cat.row*(BTN_H+GAP);
     if(mx>=bx&&mx<=bx+BTN_W&&my>=by&&my<=by+BTN_H)return{type:'category',cat};
   }
   if(selectedCategory&&selectedCategory.blocks){
     const blocks=selectedCategory.blocks;
     const listW=BTN_W*3+GAP*2;
-    const listX=VIEW_W-14-2*(BTN_W+GAP)-10-listW;
+    const listX=VIEW_W-10-2*(BTN_W+GAP)-8-listW;
     const listY=L.catStartY-3*(BTN_H+GAP);
-    const listH=4*(BTN_H+GAP)-GAP;
+    const listH=3*(BTN_H+GAP)-GAP;
     if(mx>=listX&&mx<=listX+listW&&my>=listY&&my<=listY+listH){
       const col=Math.floor((mx-listX)/(BTN_W+GAP));
       const row=Math.floor((my-listY+blockScroll)/(BTN_H+GAP));
@@ -171,7 +172,7 @@ function getBuildMenuHit(mx,my){
       if(idx>=0&&idx<blocks.length&&col>=0&&col<3)return{type:'block',block:blocks[idx]};
     }
   }
-  if(mx>=10&&mx<=10+BTN_W&&my>=VIEW_H-10-BTN_H&&my<=VIEW_H-10)return{type:'clear'};
+  if(mx>=8&&mx<=8+BTN_W&&my>=VIEW_H-8-BTN_H&&my<=VIEW_H-8)return{type:'clear'};
   return null;
 }
 function applyMenuHit(hit){
@@ -190,7 +191,7 @@ function handlePointerDown(cx,cy,ptype){
   const hit=getBuildMenuHit(cx,cy);
   if(hit){
     if(hit.type==='block'||(selectedCategory&&selectedCategory.blocks)){
-      const L=getMenuLayout();const listW=BTN_W*3+GAP*2;const listX=VIEW_W-14-2*(BTN_W+GAP)-10-listW;const listY=L.catStartY-3*(BTN_H+GAP);const listH=4*(BTN_H+GAP)-GAP;
+      const L=getMenuLayout();const listW=BTN_W*3+GAP*2;const listX=VIEW_W-10-2*(BTN_W+GAP)-8-listW;const listY=L.catStartY-3*(BTN_H+GAP);const listH=3*(BTN_H+GAP)-GAP;
       if(cx>=listX&&cx<=listX+listW&&cy>=listY&&cy<=listY+listH){listDragging=true;listDragY=cy;menuDown=true;window._pendingBlockHit=hit.type==='block'?hit:null;return}
     }
     menuDown=true;applyMenuHit(hit);return;
@@ -199,7 +200,7 @@ function handlePointerDown(cx,cy,ptype){
 }
 function handlePointerMove(cx,cy){
   if(Math.abs(cx-dragStartX)>8||Math.abs(cy-dragStartY)>8)didDrag=true;
-  if(listDragging){const dy=cy-listDragY;listDragY=cy;if(selectedCategory&&selectedCategory.blocks.length){const listH=4*(BTN_H+GAP)-GAP;const maxScroll=Math.max(0,Math.ceil(selectedCategory.blocks.length/3)*(BTN_H+GAP)-listH);blockScroll=Math.max(0,Math.min(maxScroll,blockScroll-dy))}return}
+  if(listDragging){const dy=cy-listDragY;listDragY=cy;if(selectedCategory&&selectedCategory.blocks.length){const listH=3*(BTN_H+GAP)-GAP;const maxScroll=Math.max(0,Math.ceil(selectedCategory.blocks.length/3)*(BTN_H+GAP)-listH);blockScroll=Math.max(0,Math.min(maxScroll,blockScroll-dy))}return}
   if(isDraggingCamera&&!menuDown){const z=camera.zoom||1;camera.targetX-=(cx-lastTouchX)/z;camera.targetY-=(cy-lastTouchY)/z;lastTouchX=cx;lastTouchY=cy}
 }
 function handlePointerUp(cx,cy,ptype){
@@ -230,7 +231,7 @@ if(window.PointerEvent){
   window.addEventListener('mousemove',e=>handlePointerMove(e.clientX,e.clientY));
   window.addEventListener('mouseup',e=>handlePointerUp(e.clientX,e.clientY,'mouse'));
 }
-canvas.addEventListener('wheel',e=>{e.preventDefault();const L=getMenuLayout();const listW=BTN_W*3+GAP*2;const listX=VIEW_W-14-2*(BTN_W+GAP)-10-listW;const listY=L.catStartY-3*(BTN_H+GAP);const listH=4*(BTN_H+GAP)-GAP;if(selectedCategory&&selectedCategory.blocks.length&&e.clientX>=listX&&e.clientX<=listX+listW&&e.clientY>=listY&&e.clientY<=listY+listH){blockScroll=Math.max(0,Math.min(blockScroll+e.deltaY*0.5,Math.max(0,Math.ceil(selectedCategory.blocks.length/3)*(BTN_H+GAP)-listH)));return}camera.targetZoom=Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,camera.targetZoom*(e.deltaY>0?0.9:1.12)))},{passive:false});
+canvas.addEventListener('wheel',e=>{e.preventDefault();const L=getMenuLayout();const listW=BTN_W*3+GAP*2;const listX=VIEW_W-10-2*(BTN_W+GAP)-8-listW;const listY=L.catStartY-3*(BTN_H+GAP);const listH=3*(BTN_H+GAP)-GAP;if(selectedCategory&&selectedCategory.blocks.length&&e.clientX>=listX&&e.clientX<=listX+listW&&e.clientY>=listY&&e.clientY<=listY+listH){blockScroll=Math.max(0,Math.min(blockScroll+e.deltaY*0.5,Math.max(0,Math.ceil(selectedCategory.blocks.length/3)*(BTN_H+GAP)-listH)));return}camera.targetZoom=Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,camera.targetZoom*(e.deltaY>0?0.9:1.12)))},{passive:false});
 canvas.addEventListener('touchstart',e=>{if(e.touches.length===2){const dx=e.touches[0].clientX-e.touches[1].clientX;const dy=e.touches[0].clientY-e.touches[1].clientY;pinchStartDist=Math.hypot(dx,dy)||1;pinchStartZoom=camera.targetZoom;isDraggingCamera=false;listDragging=false}},{passive:true});
 canvas.addEventListener('touchmove',e=>{if(e.touches.length===2){e.preventDefault();const dx=e.touches[0].clientX-e.touches[1].clientX;const dy=e.touches[0].clientY-e.touches[1].clientY;camera.targetZoom=Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,pinchStartZoom*((Math.hypot(dx,dy)||1)/pinchStartDist)))}},{passive:false});
 function spawnShip(){ship.x=core.x+.5;ship.y=core.y-2.5;ship.vx=0;ship.vy=0;ship.angle=-Math.PI/2;camera.x=ship.x*TILE-VIEW_W/2;camera.y=ship.y*TILE-VIEW_H/2;camera.targetX=camera.x;camera.targetY=camera.y;camera.zoom=1;camera.targetZoom=1}
