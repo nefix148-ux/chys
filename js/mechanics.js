@@ -283,6 +283,7 @@ function update(dt){
   camera.targetX=Math.max(viewW/2,Math.min(MAP_SIZE*TILE-viewW/2,tcx))-VIEW_W/2;
   camera.targetY=Math.max(viewH/2,Math.min(MAP_SIZE*TILE-viewH/2,tcy))-VIEW_H/2;
   animTime+=dt;gameTime+=dt;
+  if(typeof tryDepositToCore==='function')tryDepositToCore();
   waveTimer-=dt;
   if(waveTimer<=0){
     waveNum++;waveTimer=20+waveNum*2;const n=3+waveNum*2;
