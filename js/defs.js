@@ -44,7 +44,8 @@ const BTYPE={
   SHOCK_MINE:_id++,ILLUMINATOR:_id++,
   GROUND_FACTORY:_id++,AIR_FACTORY:_id++,NAVAL_FACTORY:_id++,
   ADDITIVE_RECON:_id++,MULTIPLICATIVE_RECON:_id++,EXPONENTIAL_RECON:_id++,TETRATIVE_RECON:_id++,
-  REPAIR_POINT:_id++,REPAIR_TURRET:_id++
+  REPAIR_POINT:_id++,REPAIR_TURRET:_id++,
+  SWITCH:_id++,MESSAGE:_id++,LOGIC_PROCESSOR:_id++
 };
 function def(o){return Object.assign({size:1,itemCap:10,liqCap:60,powerUse:0,powerGen:0,directional:false,category:'factory',health:100,desc:''},o)}
 const BUILDING_DEFS={
@@ -155,22 +156,34 @@ const BUILDING_DEFS={
   [BTYPE.GROUND_FACTORY]:def({name:'Наземн. завод',size:3,color:'#8a7050',category:'units',health:500,powerUse:72,itemCap:20,unitType:'dagger',unitTime:15,unitCost:{lead:10,silicon:10}}),
   [BTYPE.AIR_FACTORY]:def({name:'Воздушн. завод',size:3,color:'#6a8aaa',category:'units',health:500,powerUse:72,itemCap:20,unitType:'flare',unitTime:15,unitCost:{copper:15,silicon:15}}),
   [BTYPE.NAVAL_FACTORY]:def({name:'Морской завод',size:3,color:'#4a80a0',category:'units',health:500,powerUse:72,itemCap:20,unitType:'risso',unitTime:20,unitCost:{metaglass:20,silicon:15}}),
-  [BTYPE.ADDITIVE_RECON]:def({name:'Адд. реконстр.',size:3,color:'#7a6a5a',category:'units',health:600,powerUse:90,unitTime:20}),
-  [BTYPE.MULTIPLICATIVE_RECON]:def({name:'Мульт. реконстр.',size:5,color:'#6a5a4a',category:'units',health:900,powerUse:180,unitTime:40}),
-  [BTYPE.EXPONENTIAL_RECON]:def({name:'Эксп. реконстр.',size:7,color:'#5a4a3a',category:'units',health:1400,powerUse:360,unitTime:70}),
-  [BTYPE.TETRATIVE_RECON]:def({name:'Тетр. реконстр.',size:9,color:'#4a3a2a',category:'units',health:2000,powerUse:600,unitTime:120}),
+  [BTYPE.ADDITIVE_RECON]:def({name:'Адд. реконстр.',size:3,color:'#7a6a5a',category:'units',health:600,powerUse:90,unitTime:20,reconTier:1,itemCap:30}),
+  [BTYPE.MULTIPLICATIVE_RECON]:def({name:'Мульт. реконстр.',size:5,color:'#6a5a4a',category:'units',health:900,powerUse:180,unitTime:40,reconTier:2,itemCap:40}),
+  [BTYPE.EXPONENTIAL_RECON]:def({name:'Эксп. реконстр.',size:7,color:'#5a4a3a',category:'units',health:1400,powerUse:360,unitTime:70,reconTier:3,itemCap:50}),
+  [BTYPE.TETRATIVE_RECON]:def({name:'Тетр. реконстр.',size:9,color:'#4a3a2a',category:'units',health:2000,powerUse:600,unitTime:120,reconTier:4,itemCap:60}),
   [BTYPE.REPAIR_POINT]:def({name:'Рем. точка',size:1,color:'#60d0a0',category:'units',health:80,powerUse:18,range:8,heal:12}),
-  [BTYPE.REPAIR_TURRET]:def({name:'Рем. турель',size:2,color:'#50c090',category:'units',health:200,powerUse:48,range:14,heal:30})
+  [BTYPE.REPAIR_TURRET]:def({name:'Рем. турель',size:2,color:'#50c090',category:'units',health:200,powerUse:48,range:14,heal:30}),
+  [BTYPE.SWITCH]:def({name:'Выключатель',size:1,color:'#808080',category:'logic',health:40}),
+  [BTYPE.MESSAGE]:def({name:'Сообщение',size:1,color:'#606080',category:'logic',health:40}),
+  [BTYPE.LOGIC_PROCESSOR]:def({name:'Процессор',size:2,color:'#5060a0',category:'logic',health:120,powerUse:12})
 };
 const UNIT_DEFS={
-  dagger:{name:'Dagger',hp:140,speed:1.2,damage:12,range:12,color:'#c08050',size:10},
-  crawler:{name:'Crawler',hp:80,speed:1.5,damage:40,range:2,color:'#6a5a40',size:8},
-  nova:{name:'Nova',hp:120,speed:1.1,damage:10,range:14,color:'#80d0a0',size:10},
-  flare:{name:'Flare',hp:70,speed:2.0,damage:9,range:16,color:'#8a9aaa',size:8,flying:true},
-  mono:{name:'Mono',hp:50,speed:1.4,damage:0,range:0,color:'#d0d060',size:8,flying:true,miner:true},
-  risso:{name:'Risso',hp:180,speed:1.0,damage:15,range:18,color:'#5a90b0',size:12,naval:true},
-  enemy:{name:'Враг',hp:80,speed:.8,damage:8,range:10,color:'#e04040',size:9}
+  dagger:{name:'Dagger',hp:140,speed:1.2,damage:12,range:12,color:'#c08050',size:10,tier:1,line:'ground'},
+  mace:{name:'Mace',hp:280,speed:1.0,damage:22,range:14,color:'#b07040',size:12,tier:2,line:'ground'},
+  fortress:{name:'Fortress',hp:500,speed:.7,damage:40,range:22,color:'#a06030',size:16,tier:3,line:'ground'},
+  scepter:{name:'Scepter',hp:900,speed:.6,damage:55,range:24,color:'#905020',size:18,tier:4,line:'ground'},
+  reign:{name:'Reign',hp:1600,speed:.5,damage:80,range:26,color:'#804010',size:22,tier:5,line:'ground'},
+  crawler:{name:'Crawler',hp:80,speed:1.5,damage:40,range:2,color:'#6a5a40',size:8,tier:1,line:'insect'},
+  nova:{name:'Nova',hp:120,speed:1.1,damage:10,range:14,color:'#80d0a0',size:10,tier:1,line:'support'},
+  flare:{name:'Flare',hp:70,speed:2.0,damage:9,range:16,color:'#8a9aaa',size:8,flying:true,tier:1,line:'air'},
+  horizon:{name:'Horizon',hp:150,speed:1.6,damage:18,range:18,color:'#7a8a9a',size:11,flying:true,tier:2,line:'air'},
+  zenith:{name:'Zenith',hp:280,speed:1.3,damage:28,range:20,color:'#6a7a8a',size:14,flying:true,tier:3,line:'air'},
+  mono:{name:'Mono',hp:50,speed:1.4,damage:0,range:0,color:'#d0d060',size:8,flying:true,miner:true,tier:1,line:'supportAir'},
+  risso:{name:'Risso',hp:180,speed:1.0,damage:15,range:18,color:'#5a90b0',size:12,naval:true,tier:1,line:'naval'},
+  minke:{name:'Minke',hp:320,speed:.9,damage:25,range:20,color:'#4a80a0',size:14,naval:true,tier:2,line:'naval'},
+  enemy:{name:'Враг',hp:80,speed:.8,damage:8,range:10,color:'#e04040',size:9,tier:1,line:'enemy'},
+  enemy2:{name:'Тяж. враг',hp:200,speed:.55,damage:18,range:12,color:'#c02020',size:13,tier:2,line:'enemy'}
 };
+const UPGRADE_MAP={dagger:'mace',mace:'fortress',fortress:'scepter',scepter:'reign',flare:'horizon',horizon:'zenith',risso:'minke'};
 const CAT_MAP={factory:[],units:[],logic:[],power:[],walls:[],transport:[],liquid:[],drill:[],turret:[]};
 for(const [k,v] of Object.entries(BUILDING_DEFS)){
   const cat=v.category||'factory';
@@ -185,5 +198,6 @@ const CATEGORIES=[
   {id:'transport',name:'Транспорт',side:'left',row:2,blocks:CAT_MAP.transport},
   {id:'liquid',name:'Жидкости',side:'right',row:2,blocks:CAT_MAP.liquid},
   {id:'drill',name:'Буры',side:'left',row:3,blocks:CAT_MAP.drill},
-  {id:'turret',name:'Турели',side:'right',row:3,blocks:CAT_MAP.turret}
+  {id:'turret',name:'Турели',side:'right',row:3,blocks:CAT_MAP.turret},
+  {id:'logic',name:'Логика',side:'left',row:4,blocks:CAT_MAP.logic}
 ];
