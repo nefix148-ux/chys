@@ -51,36 +51,58 @@ function draw(){
   const sTY=Math.max(0,Math.floor((camCY-halfH)/TILE)-1);
   const eTX=Math.min(MAP_SIZE,Math.ceil((camCX+halfW)/TILE)+1);
   const eTY=Math.min(MAP_SIZE,Math.ceil((camCY+halfH)/TILE)+1);
+  // 1) Terrain only
   for(let y=sTY;y<eTY;y++)for(let x=sTX;x<eTX;x++){
-    const type=map[y][x],ore=oreMap[y][x],sx=x*TILE,sy=y*TILE;
-    drawTile(type,ore,sx,sy);
+    drawTile(map[y][x],oreMap[y][x],x*TILE,y*TILE);
+  }
+  // 2) Buildings (full multi-tile size) so terrain never covers them
+  for(let y=sTY;y<eTY;y++)for(let x=sTX;x<eTX;x++){
     const b=buildMap[y][x];
-    if(b&&b.type!=='part'){
-      const def=BUILDING_DEFS[b.type];
-      if(def){
-        const bw=TILE*def.size,bh=TILE*def.size;
-        ctx.fillStyle='rgba(0,0,0,.25)';ctx.fillRect(sx+3,sy+4,bw-2,bh-2);
-        ctx.fillStyle=def.color;ctx.globalAlpha=.95;ctx.fillRect(sx+1,sy+1,bw-2,bh-2);ctx.globalAlpha=1;
-        ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=1.5;ctx.strokeRect(sx+2,sy+2,bw-4,bh-4);
-        ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=2;ctx.strokeRect(sx+1,sy+1,bw-2,bh-2);
-        if(def.size>1){
-          ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(sx+4,sy+4,24,14);
-          ctx.fillStyle='#ffe8a0';ctx.font='bold 11px system-ui';ctx.textAlign='left';ctx.fillText(def.size+'×'+def.size,sx+6,sy+15);
-        }
-        if(def.directional||isConveyorType(b.type))drawDirArrow(sx+bw/2,sy+bh/2,b.dir??0);
-        if(def.mine){
-          const p=0.4+0.3*Math.sin(animTime*4);
-          ctx.strokeStyle=`rgba(255,200,80,${p})`;ctx.lineWidth=2;
-          ctx.strokeRect(sx+3,sy+3,bw-6,bh-6);
-        }
-        const ic=Object.values(b.items||{}).reduce((a,v)=>a+v,0);
-        if(ic>=1){ctx.fillStyle='#fff';ctx.font='bold 13px system-ui';ctx.fillText(String(Math.floor(ic)),sx+5,sy+bh-7)}
-        const key=x+','+y;
-        if(deleteSel.has(key)){ctx.strokeStyle='#ff2222';ctx.lineWidth=3;ctx.strokeRect(sx+.5,sy+.5,bw-1,bh-1);ctx.fillStyle='rgba(255,40,40,.2)';ctx.fillRect(sx+1,sy+1,bw-2,bh-2)}
-      }
-    }else if(b&&b.type==='part'){
-      const key=b.parentX+','+b.parentY;
-      if(deleteSel.has(key)){ctx.strokeStyle='#ff2222';ctx.lineWidth=2;ctx.strokeRect(sx+1,sy+1,TILE-2,TILE-2)}
+    if(!b||b.type==='part')continue;
+    const def=BUILDING_DEFS[b.type];
+    if(!def)continue;
+    const sx=x*TILE,sy=y*TILE;
+    const bw=TILE*def.size,bh=TILE*def.size;
+    ctx.fillStyle='rgba(0,0,0,.28)';
+    ctx.fillRect(sx+3,sy+4,bw-2,bh-2);
+    ctx.fillStyle=def.color;
+    ctx.globalAlpha=.96;
+    ctx.fillRect(sx+1,sy+1,bw-2,bh-2);
+    ctx.globalAlpha=1;
+    ctx.strokeStyle='rgba(255,255,255,.22)';
+    ctx.lineWidth=1.5;
+    ctx.strokeRect(sx+2,sy+2,bw-4,bh-4);
+    ctx.strokeStyle='rgba(0,0,0,.55)';
+    ctx.lineWidth=2;
+    ctx.strokeRect(sx+1,sy+1,bw-2,bh-2);
+    if(def.size>1){
+      ctx.fillStyle='rgba(0,0,0,.45)';
+      ctx.fillRect(sx+4,sy+4,28,15);
+      ctx.fillStyle='#ffe8a0';
+      ctx.font='bold 11px system-ui';
+      ctx.textAlign='left';
+      ctx.fillText(def.size+'×'+def.size,sx+6,sy+15);
+    }
+    if(def.directional||isConveyorType(b.type))drawDirArrow(sx+bw/2,sy+bh/2,b.dir??0);
+    if(def.mine){
+      const p=0.4+0.3*Math.sin(animTime*4);
+      ctx.strokeStyle=`rgba(255,200,80,${p})`;
+      ctx.lineWidth=2;
+      ctx.strokeRect(sx+3,sy+3,bw-6,bh-6);
+    }
+    const ic=Object.values(b.items||{}).reduce((a,v)=>a+v,0);
+    if(ic>=1){
+      ctx.fillStyle='#fff';
+      ctx.font='bold 13px system-ui';
+      ctx.fillText(String(Math.floor(ic)),sx+5,sy+bh-7);
+    }
+    const key=x+','+y;
+    if(deleteSel.has(key)){
+      ctx.strokeStyle='#ff2222';
+      ctx.lineWidth=3;
+      ctx.strokeRect(sx+.5,sy+.5,bw-1,bh-1);
+      ctx.fillStyle='rgba(255,40,40,.18)';
+      ctx.fillRect(sx+1,sy+1,bw-2,bh-2);
     }
   }
   for(const gh of ghosts){
