@@ -70,13 +70,6 @@ function draw(){
       ctx.strokeStyle='rgba(255,80,80,.2)';ctx.lineWidth=1;
       ctx.beginPath();ctx.arc(cx,cy,Math.min((def.range||10)*TILE*0.1,bw*1.2),0,Math.PI*2);ctx.stroke();
     }
-    if(def.size>1){
-      ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(sx+3,sy+3,22,11);
-      ctx.fillStyle='#ffe8a0';ctx.font='bold 9px system-ui';ctx.textAlign='left';
-      ctx.fillText(def.size+'×'+def.size,sx+5,sy+11);
-    }
-    const ic=Object.values(b.items||{}).reduce((a,v)=>a+v,0);
-    if(ic>=0.5){ctx.fillStyle='#fff';ctx.font='bold 12px system-ui';ctx.fillText(String(Math.floor(ic)),sx+5,sy+bh-6)}
     if(b.health!=null&&b.maxHealth&&b.health<b.maxHealth){
       const ratio=b.health/b.maxHealth;
       ctx.fillStyle='#333';ctx.fillRect(sx+2,sy+bh-5,bw-4,3);
@@ -135,16 +128,12 @@ function draw(){
   ctx.fillStyle='#ff8c00';ctx.beginPath();ctx.moveTo(ship.size*.75,0);ctx.lineTo(ship.size*.15,-ship.size*.22);ctx.lineTo(ship.size*.15,ship.size*.22);ctx.closePath();ctx.fill();
   ctx.restore();
   ctx.restore();
-  ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(8,VIEW_H-78,130,48);
-  ctx.fillStyle='#aaa';ctx.font='9px system-ui';ctx.textAlign='left';
-  ctx.fillText('⚡ '+globalPower.toFixed(0)+'/'+globalPowerCap.toFixed(0)+' (+'+globalPowerGen.toFixed(0)+')',12,VIEW_H-64);
-  ctx.fillText('Волна '+waveNum+' · '+Math.ceil(waveTimer)+'с · враги '+enemies.length,12,VIEW_H-50);
-  ctx.fillStyle='#8cf';ctx.fillText('F: '+selectedFilter+(shields.length?' · щит '+shields.length:''),12,VIEW_H-36);
+  ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(8,VIEW_H-36,120,24);
+  ctx.fillStyle='#ccc';ctx.font='11px system-ui';ctx.textAlign='left';
+  ctx.fillText('Волна '+waveNum+' · '+Math.ceil(waveTimer)+'с',14,VIEW_H-20);
   drawCoreInv();drawBuildMenu();drawBlockInfo();
-  ctx.fillStyle=buildMode==='delete'?'rgba(180,30,30,.75)':'rgba(40,40,20,.6)';
-  ctx.fillRect(VIEW_W/2-60,6,120,18);
-  ctx.fillStyle=buildMode==='delete'?'#faa':'#fc6';ctx.font='bold 11px system-ui';ctx.textAlign='center';
-  ctx.fillText(buildMode==='delete'?'СНОС':'СТРОЙКА',VIEW_W/2,18);
+  ctx.fillStyle=buildMode==='delete'?'rgba(200,40,40,.8)':'rgba(255,140,0,.55)';
+  ctx.fillRect(VIEW_W/2-20,6,40,4);
   ctx.textAlign='left';
 }
 let lastTime=performance.now();
